@@ -45,24 +45,20 @@ pipenv install --ignore-pipfile
 The script will use the environment variable 'TOKEN' to authenticate to DNA Spaces. You will need to set this according
 to your OS.
 
-OSX:
-```
-export TOKEN="abcdefghijkl"
-```
-Windows10:
-```
-set TOKEN "abcdefghijkl"
-```
-
 Use the Pipenv shell to ensure you access the virtual environment created:
 ```
 pipenv shell
 ```
 
- You can now run the scripts:
+You can now run the scripts:
 
 ```
 python app.py
 ```
 This will run a local Flask web server on http://127.0.0.1:5000 which is helpful for testing.
 
+## Testing
+
+You can use the notification_teser.py script to send notifications to the local server.
+
+You can connect to the Flask web server on http://127.0.0.1:5000
