@@ -68,7 +68,7 @@
                 <h5 class="card-title">Load Results</h5>
                 <p class="card-text">As the location notifications are received the error distance will be computed.</p>
                     <form>
-                        {% if tracking_status %}
+                        {% if client.number_updates > 0 %}
                             <input class="btn btn-primary" type="button" onClick="history.go(0)" value="Load Results">
                         {%  else %}
                             <input class="btn btn-primary" type="button" onClick="history.go(0)" value="Load Results" disabled>
