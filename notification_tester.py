@@ -61,27 +61,46 @@ move_payload = """
 def send_move_notifications(mac, start_x, start_y, finish_x, finish_y, iterations):
     host = "127.0.0.1:5000"
     good = 0
-    payload_json = json.loads(move_payload)
-    url = "http://{}/notification".format(host)
-    step_x = round((finish_x - start_x) / iterations, 2)
-    step_y = round((finish_y - start_y) / iterations, 2)
-    print(f"step_x {step_x} step_y {step_y}")
-    for i in range(iterations):
-        payload_json['notifications'][0]['deviceId'] = mac
-        now = datetime.now()
-        payload_json['notifications'][0]['timestamp'] = round(now.timestamp() * 1000)
-        payload_json['notifications'][0]['locationCoordinate']['x'] = start_x + round(random.random(), 1)
-        payload_json['notifications'][0]['locationCoordinate']['y'] = start_y + round(random.random(), 1)
+    url_post = "http://{}/".format(host)
+    payload = {'submit': 'Start', 'mac_address': mac, 'x_coordinates': finish_x, 'y_coordinates': finish_y}
+    try:
+        print(f"Sending POST for mac {mac} x {finish_x} y {finish_y}")
+        r = requests.post(url_post, data=payload)
+    except requests.exceptions.RequestException as e:
+        print(f"Error: Got exception {e} error from requests.")
+        raise SystemExit(e)
+    if r.status_code == 200:
+        print(f"Tracking of mac {mac} successfully set. Sending {iterations} test data.")
+        payload_json = json.loads(move_payload)
+        url = "http://{}/notification".format(host)
+        step_x = round((finish_x - start_x) / iterations, 2)
+        step_y = round((finish_y - start_y) / iterations, 2)
+        print(f"step_x {step_x} step_y {step_y}")
+        for i in range(iterations):
+            payload_json['notifications'][0]['deviceId'] = mac
+            now = datetime.now()
+            payload_json['notifications'][0]['timestamp'] = round(now.timestamp() * 1000)
+            payload_json['notifications'][0]['locationCoordinate']['x'] = start_x + round(random.random(), 1)
+            payload_json['notifications'][0]['locationCoordinate']['y'] = start_y + round(random.random(), 1)
+            try:
+                r = requests.post(url, json=payload_json)
+                if r.status_code == 200:
+                    good += 1
+            except:
+                print("Failed to send request for client", mac)
+            start_x += step_x
+            start_y += step_y
+            time.sleep(random.random())
+        print('Finished move notifications - ', good)
+        payload = {'submit': 'Stop'}
         try:
-            r = requests.post(url, json=payload_json)
-            if r.status_code == 200:
-                good += 1
-        except:
-            print("Failed to send request for client", mac)
-        start_x += step_x
-        start_y += step_y
-        time.sleep(random.random())
-    print('Finished move notifications - ', good)
+            print(f"Sending POST STOP tracking")
+            r = requests.post(url_post, data=payload)
+        except requests.exceptions.RequestException as e:
+            print(f"Error: Got exception {e} error from requests.")
+            raise SystemExit(e)
+    else:
+        print(f"Got status code {r.status_code} from POST to set tracking.")
 
     return
 
