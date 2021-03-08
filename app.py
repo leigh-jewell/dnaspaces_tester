@@ -15,7 +15,8 @@ client = {
     "start_time": "",
     "number_updates": 0,
     "location_updates": [],
-    "filename": ""
+    "filename": "",
+    "zone": ""
 }
 
 
@@ -24,17 +25,18 @@ def calc_distance(x1, y1, x2, y2):
     return round(distance, 1)
 
 
-def client_update(mac, x, y, timestamp, notification_time):
+def client_update(mac, x, y, timestamp, notification_time, zone):
     global client
     if client['tracking'] and client['mac'] == mac:
-        print(f"Client location update for tracked client {mac} {x}, {y} {notification_time}")
+        print(f"Client location update for tracked client {mac} {x}, {y} {notification_time} {zone}")
         distance_error = calc_distance(client['x'], client['y'], x, y)
         time_delta = round((timestamp - client['start_time']).total_seconds(), 1)
         print(f"Distance error {distance_error} time secs {time_delta}")
         client['location_updates'].append({'x': x,
                                            'y': y,
                                            'error': distance_error,
-                                           'seconds': time_delta})
+                                           'seconds': time_delta,
+                                           'zone': zone})
         print(client['location_updates'])
         client["number_updates"] += 1
 
@@ -50,10 +52,20 @@ def post():
         time_stamp = request.json['notifications'][0]['timestamp']/1000
         time_stamp_datetime = dt.fromtimestamp(time_stamp)
         time_stamp_format = time_stamp_datetime .isoformat()
-        x = round(request.json['notifications'][0]['locationCoordinate']['x'], 1)
-        y = round(request.json['notifications'][0]['locationCoordinate']['y'], 1)
+        location_map_hierarchy = request.json['notifications'][0]['locationMapHierarchy']
+        zone = location_map_hierarchy.split("->")[-1]
+        x_feet = round(request.json['notifications'][0]['locationCoordinate']['x'], 1)
+        y_feet = round(request.json['notifications'][0]['locationCoordinate']['y'], 1)
+        if x_feet > 0.0:
+            x = round(x_feet * 0.3048, 1)
+        else:
+            x = 0.0
+        if y_feet > 0.0:
+            y = round(y_feet * 0.3048, 1)
+        else:
+            y = 0.0
         if client['tracking']:
-            client_update(device_id, x, y, time_stamp_datetime, time_stamp_format)
+            client_update(device_id, x, y, time_stamp_datetime, time_stamp_format, zone)
     except (ValueError, KeyError, TypeError) as e:
         print("Error with POST", e)
     return json.dumps(request.json)
@@ -102,7 +114,6 @@ def down_load_file():
     response.mimetype = 'text/csv'
 
     return response
-
 
 
 if __name__ == '__main__':
