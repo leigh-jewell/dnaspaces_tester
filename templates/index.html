@@ -91,34 +91,35 @@
                         <h5 class="card-header">Results</h5>
                         <div class="card-body">
                         <h5 class="card-title">Summary Statisitics</h5>
+                            {%  if client.number_updates > 0 %}
                             <small>
-                        <dl class="row">
-                            <dt class="col-sm-3">Device Under Test</dt>
-                            <dd class="col-sm-9">{{ client.mac }}</dd>
-                            <dt class="col-sm-3">Test Location</dt>
-                            <dd class="col-sm-9">({{ client.x }}, {{ client.y }})</dd>
-                            <dt class="col-sm-3">Average Accuracy (mtrs)</dt>
-                            <dd class="col-sm-9">{{ stats.average_accuracy }}</dd>
-                            <dt class="col-sm-3">Median Accuracy (mtrs)</dt>
-                            <dd class="col-sm-9">{{ stats.median_accuracy }}</dd>
-                            <dt class="col-sm-3">Precision 20 mtrs</dt>
-                            <dd class="col-sm-9">{{ stats.precision_20 }}%</dd>
-                            <dt class="col-sm-3">Precision 15 mtrs</dt>
-                            <dd class="col-sm-9">{{ stats.precision_15 }}%</dd>
-                            <dt class="col-sm-3">Precision 10 mtrs</dt>
-                            <dd class="col-sm-9">{{ stats.precision_10 }}%</dd>
-                            <dt class="col-sm-3">Precision  5 mtrs</dt>
-                            <dd class="col-sm-9">{{ stats.precision_5 }}%</dd>
-                            <dt class="col-sm-3">Average Update Time (sec)</dt>
-                            <dd class="col-sm-9">{{ stats.average_latency }}</dd>
-                            <dt class="col-sm-3">Median Update Time (sec)</dt>
-                            <dd class="col-sm-9">{{ stats.median_latency }}</dd>
-                        </dl>
+                                <dl class="row">
+                                    <dt class="col-sm-3">Device Under Test</dt>
+                                    <dd class="col-sm-9">{{ client.mac }}</dd>
+                                    <dt class="col-sm-3">Test Location</dt>
+                                    <dd class="col-sm-9">({{ client.x }}, {{ client.y }})</dd>
+                                    <dt class="col-sm-3">Average Accuracy (mtrs)</dt>
+                                    <dd class="col-sm-9">{{ stats.average_accuracy }}</dd>
+                                    <dt class="col-sm-3">Median Accuracy (mtrs)</dt>
+                                    <dd class="col-sm-9">{{ stats.median_accuracy }}</dd>
+                                    <dt class="col-sm-3">Precision 20 mtrs</dt>
+                                    <dd class="col-sm-9">{{ stats.precision_20 }}%</dd>
+                                    <dt class="col-sm-3">Precision 15 mtrs</dt>
+                                    <dd class="col-sm-9">{{ stats.precision_15 }}%</dd>
+                                    <dt class="col-sm-3">Precision 10 mtrs</dt>
+                                    <dd class="col-sm-9">{{ stats.precision_10 }}%</dd>
+                                    <dt class="col-sm-3">Precision  5 mtrs</dt>
+                                    <dd class="col-sm-9">{{ stats.precision_5 }}%</dd>
+                                    <dt class="col-sm-3">Average Update Time (sec)</dt>
+                                    <dd class="col-sm-9">{{ stats.average_latency }}</dd>
+                                    <dt class="col-sm-3">Median Update Time (sec)</dt>
+                                    <dd class="col-sm-9">{{ stats.median_latency }}</dd>
+                                </dl>
                                 </small>
+                            {% endif %}
                         </div>
                     </div>
                     <div class="card">
-
                             <div class="card-body">
                                 <h5 class="card-title">Download Table Results</h5>
                                     <p class="card-text">The results can be downloaded as a CSV file.</p>

@@ -66,3 +66,6 @@ You can now run the scripts:
 python app.py
 ```
 This will run a local Flask web server on http://127.0.0.1:5000 which is helpful for testing.
+
+## Vagrant
+Some utility files are provided if you want to use vagrant to test with or if you want to provision this to a real server.
