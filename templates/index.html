@@ -2,11 +2,7 @@
 <html lang="en">
   <head>
     <!-- Required meta tags -->
-    {% if tracking_status %}
-            <meta http-equiv="Cache-Control" http-equiv="refresh" content="10" content="no-cache, no-store, must-revalidate" />
-    {% else %}
-         <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    {% endif %}
+     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <meta charset="utf-8">
@@ -19,120 +15,172 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 
-    <title>Cisco DNA Spaces Location Speed</title>
+    <title>Cisco DNA Spaces Accuracy Test Tool</title>
   </head>
   <body>
   <div class="container-fluid">
-    <div class="row">
-      <div class="col">
-        <div class="card">
-          <h5 class="card-header">Cisco DNA Spaces</h5>
-            <div class="card-body">
-              <h5 class="card-title">Calculate location update</h5>
-              <p class="card-text">Provide your MAC address, X and Y coordinates on the map and hit start. The output will include a table of location errors for each
-              new location update from DNA Spaces and the time since the start button his hit. </p>
+          <div class="row">
+                <div class="col-sm-4">
+                    <div class="card">
+                        <h5 class="card-header">Cisco DNA Spaces Firehose Accuracy Tool</h5>
+                            <div class="card-body">
+                                <h5 class="card-title">Activate Firehose App to get API Key</h5>
+                                  <form action="/activate" method=post>
+                                    <dl>
+                                        <dt>Firehose Activation Token:</dt>
+                                            <dd><input class="form-control" placeholder="App Activation Token"  type=text name=token>
+                                            <dd><input class="btn btn-primary" type=submit name="Activate" value="Activate"></dd>
+                                    </dl>
+                                  </form>
+                            </div>
+                    </div>
+                    <div class="card">
+                            <div class="card-body">
+                              <h5 class="card-title">Calculate location update</h5>
+                              <p class="card-text">Provide your MAC address, X and Y coordinates on the map and hit start. The output will include a table of location errors for each
+                              new location update from DNA Spaces and the time since the start button his hit. </p>
+                                {% if client.tracking %}
+                                    <form action="/track" method=post>
+                                        <dl>
+                                        <dt>Firehose API Key:
+                                        <dd><input class="form-control" value={{ api_key }} name="api_key" type="text"></dd>
+                                        <dt>MAC Address:
+                                        <dd><input class="form-control" value={{ client.mac }} type=text length="17" name=mac_address>
+                                        <dt>Real X-Coordinate:
+                                        <dd><input class="form-control" value={{ client.x}}  type=number step="0.01" name=x_coordinates>
+                                        <dt>Real Y-Coordinate:
+                                        <dd><input class="form-control" value={{ client.y }}  type=number step="0.01" name=y_coordinates>
+                                        <dt>Time to test (sec):
+                                        <dd><input class="form-control" value={{ client.test_time }}  type=number step="0" name=test_time>
+                                        <dd><input class="btn btn-primary" type=submit name="submit" value="Track">
+                                        </dl>
+                                    </form>
+                                {% else %}
+                                    <form action="/track" method=post>
+                                        <dl>
+                                        <dt>Firehose API Key:
+                                        <dd><input class="form-control" placeholder="API KEY" name="api_key" type="text"></dd>
+                                        <dt>MAC Address:
+                                        <dd><input class="form-control" placeholder="aa:bb:cc:dd:ee:ff:11" type=text length="17" name=mac_address>
+                                        <dt>Real X-Coordinate:
+                                        <dd><input class="form-control" placeholder="10"  type=number step="0.1" name=x_coordinates>
+                                        <dt>Real Y-Coordinate:
+                                        <dd><input class="form-control" placeholder="10"  type=number step="0.1" name=y_coordinates>
+                                        <dt>Time to test (sec):
+                                        <dd><input class="form-control" value="10"  type=number step="0" name=test_time>
+                                        <dd><input class="btn btn-primary" type=submit name="submit" value="Track">
+                                        </dl>
+                                    </form>
+                                {% endif %}
+                              <p class="card-text"><small id="api_token_help" class="text-muted">Status: Total events received: {{ client.total_events }} Total Interesting Events: {{ client.number_updates }}</small> </p>
+                            </div>
+                    </div>
 
+                </div>
+                <div class="col-sm-6">
+                    <div class="card">
+                        <h5 class="card-header">Results</h5>
+                            <div class="card-body">
+                                <h5 class="card-title">Download Results</h5>
+                                    <p class="card-text">The results can be downloaded as a CSV file.</p>
+                                        {%  if client.number_updates > 0 %}
+                                            <button class="btn btn-primary" onclick="exportData()"><i class="fa fa-download"></i> Download</button>
+                                        {%  else %}
+                                            <button class="btn btn-primary" onclick="exportData()" disabled><i class="fa fa-download"></i> Download</button>
+                                        {% endif %}
+                            </div>
+                    </div>
+                    <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Location updates</h5>
+                                  <small id="status_floors" class="text-muted">
+                                  </small>
+                                  <small id="status_hierarchy" class="text-muted">
+                                  </small>
+                                  <div id="floor_count_table">
+                                    <table class="table table-striped" id="location_updates">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">Predicted X</th>
+                                                <th scope="col">Predicted Y</th>
+                                                <th scope="col">Error Distance</th>
+                                                <th scope="col">Location</th>
+                                                <th scope="col">Seconds Elapsed</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for updates in client.location_updates %}
+                                                <tr>
+                                                   <td>{{updates.x}}</td>
+                                                   <td>{{updates.y}}</td>
+                                                   <td>{{updates.error}}</td>
+                                                    <td>{{updates.location}}</td>
+                                                   <td>{{updates.seconds}}</td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                  </div>
+                            </div>
+                    </div>
+                </div>
+          </div>
+  </div>
 
-                    {% if tracking_status %}
-                        <form action="" method=post>
-                        <dl>
-                        <dt>MAC Address:
-                        <dd><input class="form-control" placeholder={{ client.mac }} type=text length="17" name=mac_address readonly>
-                        <dt>X-Coordinate:
-                        <dd><input class="form-control" placeholder={{ client.x}}  type=number step="0.01" name=x_coordinates readonly>
-                        <dt>Y-Coordinate:
-                        <dd><input class="form-control" placeholder={{ client.y }}  type=number step="0.01" name=y_coordinates readonly>
-                        <dd><input class="btn btn-primary" type=submit name="submit" value="Stop">
-                    {% else %}
-                        <form action="" method=post>
-                        <dl>
-                        <dt>MAC Address:
-                        <dd><input class="form-control" placeholder="aa:bb:cc:dd:ee:ff" type=text length="17" name=mac_address>
-                        <dt>X-Coordinate:
-                        <dd><input class="form-control" placeholder="metres" type=number step="0.01" name=x_coordinates>
-                        <dt>Y-Coordinate:
-                        <dd><input class="form-control" placeholder="metres" type=number step="0.01" name=y_coordinates>
-                        <dd><input class="btn btn-primary" type=submit name="submit" value="Start">
-                    {% endif %}
-                    </dl>
-                    </form>
-              <p class="card-text"><small id="api_token_help" class="text-muted">Status</small></p>
-            </div>
-        </div>
-      </div>
     </div>
-      <div class="row">
-          <div class="col-sm-6">
-            <div class="card">
-              <div class="card-body">
-                <h5 class="card-title">Load Results</h5>
-                <p class="card-text">As the location notifications are received the error distance will be computed.</p>
-                    <form>
-                        {% if client.number_updates > 0 %}
-                            <input class="btn btn-primary" type="button" onClick="history.go(0)" value="Load Results">
-                        {%  else %}
-                            <input class="btn btn-primary" type="button" onClick="history.go(0)" value="Load Results" disabled>
-                        {% endif %}
-                    </form>
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-6">
-            <div class="card">
-              <div class="card-body">
-                <h5 class="card-title">Download Results</h5>
-                <p class="card-text">The results can be downloaded as a CSV file.</p>
-                    <form method="get" action="download">
-                        {%  if client.number_updates > 0 %}
-                            <button class="btn btn-primary" type="submit"><i class="fa fa-download"></i> Download</button>
-                        {%  else %}
-                            <button class="btn btn-primary" type="submit" disabled><i class="fa fa-download"></i> Download</button>
-                        {% endif %}
-                    </form>
-              </div>
-            </div>
-          </div>
-    </div>
-    <div class="row">
-      <div class="col-sm-6">
-        <div class="card">
-          <div class="card-body">
-            <h5 class="card-title">Location updates</h5>
-              <small id="status_floors" class="text-muted">
-              </small>
-              <small id="status_hierarchy" class="text-muted">
-              </small>
-              <div id="floor_count_table">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th scope="col">Predicted X</th>
-                            <th scope="col">Predicted Y</th>
-                            <th scope="col">Error Distance</th>
-                            <th scope="col">Zone</th>
-                            <th scope="col">Seconds Elapsed</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for updates in client.location_updates %}
-                            <tr>
-                               <td>{{updates.x}}</td>
-                               <td>{{updates.y}}</td>
-                               <td>{{updates.error}}</td>
-                                <td>{{updates.zone}}</td>
-                               <td>{{updates.seconds}}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-              </div>
-            </div>
-        </div>
-      </div>
     <!-- Optional JavaScript -->
     <!-- jQuery first, then Popper.js, then Bootstrap JS -->
     <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+  {% block javascript %}
+    <script type="text/javascript">
+        function exportData(){
+            /* Get the HTML data using Element by Id */
+            var table = document.getElementById("location_updates");
+
+            /* Declaring array variable */
+            var rows =[];
+
+              //iterate through rows of table
+            for(var i=0,row; row = table.rows[i];i++){
+                //rows would be accessed using the "row" variable assigned in the for loop
+                //Get each cell value/column from the row
+                column1 = row.cells[0].innerText;
+                column2 = row.cells[1].innerText;
+                column3 = row.cells[2].innerText;
+                column4 = row.cells[3].innerText;
+                column5 = row.cells[4].innerText;
+
+            /* add a new records in the array */
+                rows.push(
+                    [
+                        column1,
+                        column2,
+                        column3,
+                        column4,
+                        column5
+                    ]
+                );
+
+                }
+                csvContent = "data:text/csv;charset=utf-8,";
+                 /* add the column delimiter as comma(,) and each row splitted by new line character (\n) */
+                rows.forEach(function(rowArray){
+                    row = rowArray.join(",");
+                    csvContent += row + "\r\n";
+                });
+
+                /* create a hidden <a> DOM node and set its download attribute */
+                var encodedUri = encodeURI(csvContent);
+                var link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "DNASpaces_Accuracy_Report.csv");
+                document.body.appendChild(link);
+                 /* download the data file named "Stock_Price_Report.csv" */
+                link.click();
+        }
+  </script>
+  {% endblock %}
   </body>
 </html>
