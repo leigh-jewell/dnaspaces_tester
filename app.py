@@ -7,7 +7,7 @@ from datetime import datetime as dt
 import tempfile
 from activate import process_activation
 import requests
-import ast
+import statistics
 
 app = Flask(__name__)
 
@@ -35,13 +35,14 @@ def calc_distance(x1, y1, x2, y2):
 
 def client_update(client, record_timestamp, x, y, location):
     distance_error = calc_distance(client['x'], client['y'], x, y)
-    time_delta = round((record_timestamp - client['start_time']).total_seconds(), 1)
-    print(f"Distance error {distance_error} time secs {time_delta}")
-    location_updates = {'x': x,
-                         'y': y,
-                         'error': distance_error,
-                         'seconds': time_delta,
-                         'location': location}
+    time_delta = abs(round((record_timestamp - client['start_time']).total_seconds(), 1))
+    print(f"Distance error {distance_error} time secs {time_delta} {client['start_time']} {record_timestamp}")
+    location_updates = {'timestamp': record_timestamp,
+                        'x': x,
+                        'y': y,
+                        'error': distance_error,
+                        'seconds': time_delta,
+                        'location': location}
     print(location_updates)
 
     return location_updates
@@ -78,7 +79,6 @@ def get_data_from_json(json_event, client):
                 and json_event['deviceLocationUpdate']['device']['macAddress'] == client['mac']:
             number_location_updates += 1
             time_stamp_datetime = dt.fromtimestamp(json_event['recordTimestamp'] / 1000)
-#            time_stamp_formatted = time_stamp_datetime.isoformat()
             x = feet_to_mts(json_event['deviceLocationUpdate']['xPos'])
             y = feet_to_mts(json_event['deviceLocationUpdate']['yPos'])
             location = json_event['deviceLocationUpdate']['location']['name']
@@ -91,8 +91,67 @@ def get_data_from_json(json_event, client):
     return result
 
 
+def post_process_results(location_updates):
+    first_update = True
+    processed = []
+    stats = {}
+    total_error = 0
+    number_updates = 0
+    total_precision_20 = 0.0
+    total_precision_15 = 0.0
+    total_precision_10 = 0.0
+    total_precision_5 = 0.0
+    total_latency = 0.0
+    latency_list = []
+    accuracy_list = []
+    for update in location_updates:
+        number_updates += 1
+        timestamp = update['timestamp']
+        x = update['x']
+        y = update['y']
+        error = update['error']
+        location = update['location']
+        if first_update:
+            prev_timestamp = timestamp
+            first_update = False
+        time_delta = round((timestamp - prev_timestamp).total_seconds(), 1)
+        prev_timestamp = timestamp
+        timestamp_formatted = timestamp.isoformat()
+        total_error += error
+        total_latency += time_delta
+        latency_list.append(time_delta)
+        accuracy_list.append(error)
+        if error <= 20.0:
+            total_precision_20 += 1
+        if error <= 15.0:
+            total_precision_15 += 1
+        if error <= 10.0:
+            total_precision_10 += 1
+        if error <= 5.0:
+            total_precision_5 += 1
+        processed.append({'timestamp': timestamp_formatted,
+                          'x': x,
+                          'y': y,
+                          'error': error,
+                          'seconds': time_delta,
+                          'location': location})
+    stats['average_accuracy'] = round(total_error/number_updates, 1)
+    stats['median_accuracy'] = statistics.median(accuracy_list)
+    stats['precision_20'] = round(total_precision_20/number_updates, 3)*100
+    stats['precision_15'] = round(total_precision_15/number_updates, 3)*100
+    stats['precision_10'] = round(total_precision_10/number_updates, 3)*100
+    stats['precision_5'] = round(total_precision_5/number_updates, 3)*100
+    stats['average_latency'] = round(total_latency/number_updates-1, 1)
+    stats['median_latency'] = round(statistics.median(latency_list), 1)
+
+    print(f"Stats: {stats}")
+
+    return processed, stats
+
+
 def get_updates(client, key):
     updates = []
+    stats = {}
     number_events = 0
     number_location_updates = 0
     headers = {'X-API-Key': key}
@@ -119,11 +178,14 @@ def get_updates(client, key):
             if process_time_secs > client['test_time']:
                 print('Complete. Time taken', process_time_secs)
                 break
-    return updates, number_location_updates, number_events
+    if number_location_updates > 0:
+        updates_processed, stats = post_process_results(updates)
+    return updates_processed, number_location_updates, number_events, stats
 
 
 @app.route('/track', methods=['POST'])
 def track_client():
+    stats = {}
     client = client_template
     # Start tracking a client on the firehose API
     api_key = request.form['api_key']
@@ -134,11 +196,11 @@ def track_client():
     client['test_time'] = int(request.form['test_time'])
     client['start_time'] = dt.now()
     client['number_updates'] = 0
-    client['location_updates'], client['number_updates'], client['total_events'] = get_updates(client, api_key)
+    client['location_updates'], client['number_updates'], client['total_events'], stats = get_updates(client, api_key)
     client['tracking'] = True
     print(f"Finished tracking {client['mac']}, got following events {client['number_updates'] }")
 
-    return render_template('index.html', api_key=api_key, client=client)
+    return render_template('index.html', api_key=api_key, client=client, stats=stats)
 
 
 @app.route('/', methods=['GET'])

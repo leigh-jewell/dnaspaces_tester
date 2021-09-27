@@ -8,6 +8,15 @@
     <meta charset="utf-8">
     <style> /* set the CSS */
     .bar { fill: steelblue; }
+
+        .my-custom-scrollbar {
+            position: relative;
+            height: 200px;
+            overflow: auto;
+            }
+            .table-wrapper-scroll-y {
+            display: block;
+            }
     </style>
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
@@ -80,8 +89,38 @@
                 <div class="col-sm-6">
                     <div class="card">
                         <h5 class="card-header">Results</h5>
+                        <div class="card-body">
+                        <h5 class="card-title">Summary Statisitics</h5>
+                            <small>
+                        <dl class="row">
+                            <dt class="col-sm-3">Device Under Test</dt>
+                            <dd class="col-sm-9">{{ client.mac }}</dd>
+                            <dt class="col-sm-3">Test Location</dt>
+                            <dd class="col-sm-9">({{ client.x }}, {{ client.y }})</dd>
+                            <dt class="col-sm-3">Average Accuracy (mtrs)</dt>
+                            <dd class="col-sm-9">{{ stats.average_accuracy }}</dd>
+                            <dt class="col-sm-3">Median Accuracy (mtrs)</dt>
+                            <dd class="col-sm-9">{{ stats.median_accuracy }}</dd>
+                            <dt class="col-sm-3">Precision 20 mtrs</dt>
+                            <dd class="col-sm-9">{{ stats.precision_20 }}%</dd>
+                            <dt class="col-sm-3">Precision 15 mtrs</dt>
+                            <dd class="col-sm-9">{{ stats.precision_15 }}%</dd>
+                            <dt class="col-sm-3">Precision 10 mtrs</dt>
+                            <dd class="col-sm-9">{{ stats.precision_10 }}%</dd>
+                            <dt class="col-sm-3">Precision  5 mtrs</dt>
+                            <dd class="col-sm-9">{{ stats.precision_5 }}%</dd>
+                            <dt class="col-sm-3">Average Update Time (sec)</dt>
+                            <dd class="col-sm-9">{{ stats.average_latency }}</dd>
+                            <dt class="col-sm-3">Median Update Time (sec)</dt>
+                            <dd class="col-sm-9">{{ stats.median_latency }}</dd>
+                        </dl>
+                                </small>
+                        </div>
+                    </div>
+                    <div class="card">
+
                             <div class="card-body">
-                                <h5 class="card-title">Download Results</h5>
+                                <h5 class="card-title">Download Table Results</h5>
                                     <p class="card-text">The results can be downloaded as a CSV file.</p>
                                         {%  if client.number_updates > 0 %}
                                             <button class="btn btn-primary" onclick="exportData()"><i class="fa fa-download"></i> Download</button>
@@ -97,10 +136,11 @@
                                   </small>
                                   <small id="status_hierarchy" class="text-muted">
                                   </small>
-                                  <div id="floor_count_table">
+                                  <div class="table-wrapper-scroll-y my-custom-scrollbar">
                                     <table class="table table-striped" id="location_updates">
                                         <thead>
                                             <tr>
+                                                <th scope="col">Timestamp</th>
                                                 <th scope="col">Predicted X</th>
                                                 <th scope="col">Predicted Y</th>
                                                 <th scope="col">Error Distance</th>
@@ -111,6 +151,7 @@
                                         <tbody>
                                             {% for updates in client.location_updates %}
                                                 <tr>
+                                                   <td>{{updates.timestamp}}</td>
                                                    <td>{{updates.x}}</td>
                                                    <td>{{updates.y}}</td>
                                                    <td>{{updates.error}}</td>
@@ -151,6 +192,7 @@
                 column3 = row.cells[2].innerText;
                 column4 = row.cells[3].innerText;
                 column5 = row.cells[4].innerText;
+                column6 = row.cells[5].innerText;
 
             /* add a new records in the array */
                 rows.push(
@@ -159,7 +201,8 @@
                         column2,
                         column3,
                         column4,
-                        column5
+                        column5,
+                        column6
                     ]
                 );
 
