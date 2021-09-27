@@ -2,7 +2,7 @@
 Cisco DNA Spaces accuracy and latency tester
 
 A small python script to test out  [Cisco DNA Spaces](https://dnaspaces.io). The script creates a web server
-using Flask to receive DNA Spaces location update notifications. It can then calculate the error distance and latency
+using Flask and connects to DNA Spaces Firehose API to receive location updates. It can then calculate the error distance and latency
 as a device is moved to a specific location on the map.
 
 ## Getting Started
@@ -24,13 +24,23 @@ Or if you are using [Homebrew](https://brew.sh/) simply run:
 brew install pipenv
 ```
 
-* For your script to authenticate with [Cisco DNA Spaces](https://dnaspaces.io) you need to create a token in your account.
-Instructions are shown on [DevNet](https://developer.cisco.com/docs/dna-spaces/#!getting-started). Otherwise, simply follow these steps: 
-1. Browse to [Detect and Locate](https://dnaspaces.io/locate/) 
-2. Click on the menu bar and select "Notifications"
-3. Click on "Web hooks"
-4. Add a "Location Update"
-5. Send the notification to the server /notification URI
+### Partners Appliction Creation
+
+For your script to receive Firehose API events you need to create an application in [Cisco DNA Spaces Partners](https://partners.dnaspaces.io).  
+The steps for creating an application are: 
+1. Browse to [Cisco DNA Spaces Partners](https://partners.dnaspaces.io) 
+2. Create new app
+3. For app type select on prem
+4. App Center > Complete APP Name, APP Tag line, APP Description, Primary Industry, App Icon
+5. App Tile > Complete APP Tile and App Tile Tag line
+6. Events > Check the event Device Location Update  
+7. Create
+8. Select App Activation Sandbox > App Center > Select your new App, click Activate button
+9. Sign up and continue
+10. Accept Permissions
+11. Choose locations that you wish to test
+12. Generate App Activation token and copy token
+13. Paste this token into the local http://127.0.0.1/ once you start python app.py
 
 ### Installing
 
@@ -56,9 +66,3 @@ You can now run the scripts:
 python app.py
 ```
 This will run a local Flask web server on http://127.0.0.1:5000 which is helpful for testing.
-
-## Testing
-
-You can use the notification_teser.py script to send notifications to the local server.
-
-You can connect to the Flask web server on http://127.0.0.1:5000
