@@ -1,10 +1,7 @@
 from flask import Flask, request, render_template, send_file, make_response
 import json
-import csv
-import os.path
 from math import sqrt
 from datetime import datetime as dt
-import tempfile
 from activate import process_activation
 import requests
 import statistics
