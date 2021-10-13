@@ -109,5 +109,10 @@ for MODULE in $modules; do
     echo "*** ERROR ***: Apache $MODULE NOT enabled" | tee "$LOG_FILE" 2>&1
   fi
 done
+
+echo "*** Setting Timezone to Sydney ***"
+sudo sudo timedatectl set-timezone Australia/Sydney
+timedatectl
+
 echo "*** Finished provisioning ***"
 

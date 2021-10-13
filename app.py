@@ -21,7 +21,10 @@ client_template = {
     "location": "",
     "tracking": False,
     "number_events": 0,
-    "total_events": 0
+    "total_events": 0,
+    "map_id": "none",
+    "map_width": 0.0,
+    "map_height": 0.0
 }
 
 
@@ -30,7 +33,7 @@ def calc_distance(x1, y1, x2, y2):
     return round(distance, 1)
 
 
-def client_update(client, record_timestamp, x, y, location):
+def client_update(client, record_timestamp, x, y, location, map_id, map_width, map_height):
     distance_error = calc_distance(client['x'], client['y'], x, y)
     time_delta = abs(round((record_timestamp - client['start_time']).total_seconds(), 1))
     print(f"Distance error {distance_error} time secs {time_delta} {client['start_time']} {record_timestamp}")
@@ -39,7 +42,10 @@ def client_update(client, record_timestamp, x, y, location):
                         'y': y,
                         'error': distance_error,
                         'seconds': time_delta,
-                        'location': location}
+                        'location': location,
+                        'map_id': map_id,
+                        'map_width': map_width,
+                        'map_height': map_height}
     print(location_updates)
 
     return location_updates
@@ -79,7 +85,10 @@ def get_data_from_json(json_event, client):
             x = feet_to_mts(json_event['deviceLocationUpdate']['xPos'])
             y = feet_to_mts(json_event['deviceLocationUpdate']['yPos'])
             location = json_event['deviceLocationUpdate']['location']['name']
-            result = client_update(client, time_stamp_datetime, x, y, location)
+            map_id = json_event['deviceLocationUpdate']['mapDetails']['mapId']
+            map_width = json_event['deviceLocationUpdate']['mapDetails']['imageWidth']
+            map_height = json_event['deviceLocationUpdate']['mapDetails']['imageHeight']
+            result = client_update(client, time_stamp_datetime, x, y, location, map_id, map_width, map_height)
         else:
             print(f"Not a device location update {json_event['eventType']}.")
     except KeyError as e:
@@ -113,7 +122,7 @@ def post_process_results(location_updates):
             first_update = False
         time_delta = round((timestamp - prev_timestamp).total_seconds(), 1)
         prev_timestamp = timestamp
-        timestamp_formatted = timestamp.isoformat()
+        timestamp_formatted = timestamp.astimezone().isoformat()
         total_error += error
         total_latency += time_delta
         latency_list.append(time_delta)
