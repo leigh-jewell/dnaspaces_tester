@@ -5,6 +5,8 @@ from datetime import datetime as dt
 from activate import process_activation
 import requests
 import statistics
+import re
+import pprint
 
 app = Flask(__name__)
 
@@ -33,7 +35,7 @@ def calc_distance(x1, y1, x2, y2):
     return round(distance, 1)
 
 
-def client_update(client, record_timestamp, x, y, location, map_id, map_width, map_height):
+def client_update(client, record_timestamp, x, y, location):
     distance_error = calc_distance(client['x'], client['y'], x, y)
     time_delta = abs(round((record_timestamp - client['start_time']).total_seconds(), 1))
     print(f"Distance error {distance_error} time secs {time_delta} {client['start_time']} {record_timestamp}")
@@ -42,10 +44,8 @@ def client_update(client, record_timestamp, x, y, location, map_id, map_width, m
                         'y': y,
                         'error': distance_error,
                         'seconds': time_delta,
-                        'location': location,
-                        'map_id': map_id,
-                        'map_width': map_width,
-                        'map_height': map_height}
+                        'location': location
+                        }
     print(location_updates)
 
     return location_updates
@@ -85,10 +85,7 @@ def get_data_from_json(json_event, client):
             x = feet_to_mts(json_event['deviceLocationUpdate']['xPos'])
             y = feet_to_mts(json_event['deviceLocationUpdate']['yPos'])
             location = json_event['deviceLocationUpdate']['location']['name']
-            map_id = json_event['deviceLocationUpdate']['mapDetails']['mapId']
-            map_width = json_event['deviceLocationUpdate']['mapDetails']['imageWidth']
-            map_height = json_event['deviceLocationUpdate']['mapDetails']['imageHeight']
-            result = client_update(client, time_stamp_datetime, x, y, location, map_id, map_width, map_height)
+            result = client_update(client, time_stamp_datetime, x, y, location)
         else:
             print(f"Not a device location update {json_event['eventType']}.")
     except KeyError as e:
@@ -100,7 +97,15 @@ def get_data_from_json(json_event, client):
 def post_process_results(location_updates):
     first_update = True
     processed = []
-    stats = {}
+    stats = {'average_accuracy':0.0,
+             'median_accuracy':0.0,
+             'precision_20':0.0,
+             'precision_15':0.0,
+             'precision_10':0.0,
+             'precision_5':0.0,
+             'average_latency':0.0,
+             'median_latency':0.0
+             }
     total_error = 0
     number_updates = 0
     total_precision_20 = 0.0
@@ -110,47 +115,49 @@ def post_process_results(location_updates):
     total_latency = 0.0
     latency_list = []
     accuracy_list = []
-    for update in location_updates:
-        number_updates += 1
-        timestamp = update['timestamp']
-        x = update['x']
-        y = update['y']
-        error = update['error']
-        location = update['location']
-        if first_update:
+    if len(location_updates) <= 0:
+        print("INFO: Nothing to process.")
+    else:
+        for update in location_updates:
+            number_updates += 1
+            timestamp = update['timestamp']
+            x = update['x']
+            y = update['y']
+            error = update['error']
+            location = update['location']
+            if first_update:
+                prev_timestamp = timestamp
+                first_update = False
+            time_delta = round((timestamp - prev_timestamp).total_seconds(), 1)
             prev_timestamp = timestamp
-            first_update = False
-        time_delta = round((timestamp - prev_timestamp).total_seconds(), 1)
-        prev_timestamp = timestamp
-        timestamp_formatted = timestamp.astimezone().isoformat()
-        total_error += error
-        total_latency += time_delta
-        latency_list.append(time_delta)
-        accuracy_list.append(error)
-        if error <= 20.0:
-            total_precision_20 += 1
-        if error <= 15.0:
-            total_precision_15 += 1
-        if error <= 10.0:
-            total_precision_10 += 1
-        if error <= 5.0:
-            total_precision_5 += 1
-        processed.append({'timestamp': timestamp_formatted,
-                          'x': x,
-                          'y': y,
-                          'error': error,
-                          'seconds': time_delta,
-                          'location': location})
-    stats['average_accuracy'] = round(total_error/number_updates, 1)
-    stats['median_accuracy'] = statistics.median(accuracy_list)
-    stats['precision_20'] = round(total_precision_20/number_updates, 3)*100
-    stats['precision_15'] = round(total_precision_15/number_updates, 3)*100
-    stats['precision_10'] = round(total_precision_10/number_updates, 3)*100
-    stats['precision_5'] = round(total_precision_5/number_updates, 3)*100
-    stats['average_latency'] = round(total_latency/number_updates-1, 1)
-    stats['median_latency'] = round(statistics.median(latency_list), 1)
-
-    print(f"Stats: {stats}")
+            timestamp_formatted = timestamp.astimezone().isoformat()
+            total_error += error
+            total_latency += time_delta
+            latency_list.append(time_delta)
+            accuracy_list.append(error)
+            if error <= 20.0:
+                total_precision_20 += 1
+            if error <= 15.0:
+                total_precision_15 += 1
+            if error <= 10.0:
+                total_precision_10 += 1
+            if error <= 5.0:
+                total_precision_5 += 1
+            processed.append({'timestamp': timestamp_formatted,
+                              'x': x,
+                              'y': y,
+                              'error': error,
+                              'seconds': time_delta,
+                              'location': location})
+        stats['average_accuracy'] = round(total_error/number_updates, 1)
+        stats['median_accuracy'] = statistics.median(accuracy_list)
+        stats['precision_20'] = round(total_precision_20/number_updates, 3)*100
+        stats['precision_15'] = round(total_precision_15/number_updates, 3)*100
+        stats['precision_10'] = round(total_precision_10/number_updates, 3)*100
+        stats['precision_5'] = round(total_precision_5/number_updates, 3)*100
+        stats['average_latency'] = round(total_latency/number_updates-1, 1)
+        stats['median_latency'] = round(statistics.median(latency_list), 1)
+        print(f"Stats: {stats}")
 
     return processed, stats
 
@@ -173,7 +180,8 @@ def get_updates(client, key):
             number_events += 1
             # Extract the data from the event
             data = json.loads(line)
-            print(f"Got data from dnaspaces {data}.")
+            print(f"Got data from dnaspaces:")
+            pprint.pprint(data)
             result = get_data_from_json(data, client)
             # Check if any interesting events are returned.
             if len(result) > 0:
@@ -184,26 +192,59 @@ def get_updates(client, key):
             if process_time_secs > client['test_time']:
                 print('Complete. Time taken', process_time_secs)
                 break
-    if number_location_updates > 0:
-        updates_processed, stats = post_process_results(updates)
+    updates_processed, stats = post_process_results(updates)
     return updates_processed, number_location_updates, number_events, stats
 
 
 @app.route('/track', methods=['POST'])
 def track_client():
     stats = {}
+    processing_error = False
     client = client_template
     # Start tracking a client on the firehose API
-    api_key = request.form['api_key']
+    try:
+        api_key = request.form['api_key']
+    except KeyError:
+        print("Error: missing api_key")
+        api_key = "Unknown"
     print(f"Track client with {api_key}")
-    client['mac'] = request.form['mac_address']
-    client['x'] = float(request.form['x_coordinates'])
-    client['y'] = float(request.form['y_coordinates'])
-    client['test_time'] = int(request.form['test_time'])
+    try:
+        client['mac'] = request.form['mac_address']
+        if not re.match("[0-9a-f]{2}([-:]?)[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", client['mac'].lower()):
+            print("Error: Not a valid mac address.")
+            processing_error = True
+    except KeyError:
+        print(f"Error: No mac address.")
+        processing_error = True
+    try:
+        client['x'] = float(request.form['x_coordinates'])
+    except KeyError:
+        print(f"Error: No x value.")
+        processing_error = True
+    except ValueError:
+        print("Error: Unable to convert x to float.")
+        processing_error = True
+    try:
+        client['y'] = float(request.form['y_coordinates'])
+    except KeyError:
+        print(f"Error: No y value.")
+        processing_error = True
+    except ValueError:
+        print("Error: Unable to convert y to float.")
+        processing_error = True
+    try:
+        client['test_time'] = int(request.form['test_time'])
+    except KeyError:
+        print("Error: Unable to get test_time.")
+        processing_error = True
+    except ValueError:
+        print("Error: Unable to test_time to int.")
+        processing_error = True
     client['start_time'] = dt.now()
     client['number_updates'] = 0
-    client['location_updates'], client['number_updates'], client['total_events'], stats = get_updates(client, api_key)
-    client['tracking'] = True
+    if not processing_error:
+        client['location_updates'], client['number_updates'], client['total_events'], stats = get_updates(client, api_key)
+        client['tracking'] = True
     print(f"Finished tracking {client['mac']}, got following events {client['number_updates'] }")
 
     return render_template('index.html', api_key=api_key, client=client, stats=stats)

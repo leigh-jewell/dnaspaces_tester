@@ -66,7 +66,7 @@ echo "*** Creating self signed certificate ***"
 if ! sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
  -keyout /etc/ssl/private/apache-selfsigned.key \
  -out /etc/ssl/certs/apache-selfsigned.crt \
- -subj "/C=AU/ST=NSW/L=Sydney/O=Cisco/OU=Cisco/CN=dnas_step_tracker.com" >> "$LOG_FILE" 2>&1; then
+ -subj "/C=AU/ST=NSW/L=Sydney/O=Cisco/OU=Cisco/CN=accuracy.thehotdesk.com.au" >> "$LOG_FILE" 2>&1; then
   echo "ERROR: self-signed certificate /etc/ssl/private/apache-selfsigned.key not created." | tee "$LOG_FILE" 2>&1
   exit 1
 fi
