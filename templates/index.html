@@ -59,6 +59,8 @@
                                         <dd><input class="form-control" value={{ client.x}}  type=number step="0.01" name=x_coordinates>
                                         <dt>Real Y-Coordinate:
                                         <dd><input class="form-control" value={{ client.y }}  type=number step="0.01" name=y_coordinates>
+                                        <dt>Location Id:
+                                        <dd><input class="form-control" value={{ client.location_id }}  type=text name=location_id>
                                         <dt>Time to test (sec):
                                         <dd><input class="form-control" value={{ client.test_time }}  type=number step="0" name=test_time>
                                         <dd><input class="btn btn-primary" type=submit name="submit" value="Track">
@@ -75,6 +77,8 @@
                                         <dd><input class="form-control" placeholder="10"  type=number step="0.1" name=x_coordinates>
                                         <dt>Real Y-Coordinate:
                                         <dd><input class="form-control" placeholder="10"  type=number step="0.1" name=y_coordinates>
+                                        <dt>Location Id:
+                                        <dd><input class="form-control" placeholder="Floor"  type=text name=location_id>
                                         <dt>Time to test (sec):
                                         <dd><input class="form-control" value="10"  type=number step="0" name=test_time>
                                         <dd><input class="btn btn-primary" type=submit name="submit" value="Track">
@@ -114,6 +118,8 @@
                                     <dd class="col-sm-9">{{ stats.average_latency }}</dd>
                                     <dt class="col-sm-3">Median Update Time (sec)</dt>
                                     <dd class="col-sm-9">{{ stats.median_latency }}</dd>
+                                    <dt class="col-sm-3">Floor Change events:</dt>
+                                    <dd class="col-sm-9">{{ stats.floor_change }}</dd>
                                 </dl>
                                 </small>
                             {% endif %}
@@ -148,7 +154,7 @@
                                                 <th scope="col">Location</th>
                                                 <th scope="col">Location Id</th>
                                                 <th scope="col">Confidence Factor (mtrs)</th>
-                                                <th scope="col">Seconds Elapsed</th>
+                                                <th scope="col">Seconds Elapsed Last Update</th>
                                             </tr>
                                         </thead>
                                         <tbody>

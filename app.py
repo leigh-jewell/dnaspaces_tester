@@ -30,13 +30,19 @@ client_template = {
 }
 
 
-def calc_distance(x1, y1, x2, y2):
-    distance = sqrt((x1 - x2)**2 + (y1 - y2)**2)
+def calc_distance(x1, y1, x2, y2, real_location, predicted_location):
+    if real_location == "":
+        print(f"Location id not provided. Using first location_id {predicted_location}")
+        real_location = predicted_location
+    if real_location == predicted_location:
+        distance = sqrt((x1 - x2)**2 + (y1 - y2)**2)
+    else:
+        distance = -1.0
     return round(distance, 1)
 
 
 def client_update(client, record_timestamp, x, y, location, location_id, confidence_factor):
-    distance_error = calc_distance(client['x'], client['y'], x, y)
+    distance_error = calc_distance(client['x'], client['y'], x, y, client['location_id'], location_id)
     time_delta = abs(round((record_timestamp - client['start_time']).total_seconds(), 1))
     print(f"Distance error {distance_error} time secs {time_delta} {client['start_time']} {record_timestamp}")
     location_updates = {'timestamp': record_timestamp,
@@ -119,6 +125,7 @@ def post_process_results(location_updates):
     total_latency = 0.0
     latency_list = []
     accuracy_list = []
+    location_changed = 0
     if len(location_updates) <= 0:
         print("INFO: Nothing to process.")
     else:
@@ -137,18 +144,22 @@ def post_process_results(location_updates):
             time_delta = round((timestamp - prev_timestamp).total_seconds(), 1)
             prev_timestamp = timestamp
             timestamp_formatted = timestamp.astimezone().isoformat()
-            total_error += error
-            total_latency += time_delta
-            latency_list.append(time_delta)
-            accuracy_list.append(error)
-            if error <= 20.0:
-                total_precision_20 += 1
-            if error <= 15.0:
-                total_precision_15 += 1
-            if error <= 10.0:
-                total_precision_10 += 1
-            if error <= 5.0:
-                total_precision_5 += 1
+            if error < 0.0:
+                print(f"INFO: Change floor event. Ignoring error {error}")
+                location_changed += 1
+            else:
+                total_error += error
+                total_latency += time_delta
+                latency_list.append(time_delta)
+                accuracy_list.append(error)
+                if error <= 20.0:
+                    total_precision_20 += 1
+                if error <= 15.0:
+                    total_precision_15 += 1
+                if error <= 10.0:
+                    total_precision_10 += 1
+                if error <= 5.0:
+                    total_precision_5 += 1
             processed.append({'timestamp': timestamp_formatted,
                               'x': x,
                               'y': y,
@@ -157,14 +168,16 @@ def post_process_results(location_updates):
                               'location': location,
                               'location_id': location_id,
                               'confidence_factor': confidence_factor})
-        stats['average_accuracy'] = round(total_error/number_updates, 1)
-        stats['median_accuracy'] = statistics.median(accuracy_list)
-        stats['precision_20'] = round(total_precision_20/number_updates, 3)*100
-        stats['precision_15'] = round(total_precision_15/number_updates, 3)*100
-        stats['precision_10'] = round(total_precision_10/number_updates, 3)*100
-        stats['precision_5'] = round(total_precision_5/number_updates, 3)*100
-        stats['average_latency'] = round(total_latency/number_updates-1, 1)
-        stats['median_latency'] = round(statistics.median(latency_list), 1)
+        if total_error > 0:
+            stats['average_accuracy'] = round(total_error/number_updates, 1)
+            stats['median_accuracy'] = statistics.median(accuracy_list)
+            stats['precision_20'] = round(total_precision_20/number_updates, 3)*100
+            stats['precision_15'] = round(total_precision_15/number_updates, 3)*100
+            stats['precision_10'] = round(total_precision_10/number_updates, 3)*100
+            stats['precision_5'] = round(total_precision_5/number_updates, 3)*100
+            stats['average_latency'] = round(total_latency/number_updates-1, 1)
+            stats['median_latency'] = round(statistics.median(latency_list), 1)
+        stats['floor_change'] = location_changed
         print(f"Stats: {stats}")
 
     return processed, stats
@@ -239,6 +252,11 @@ def track_client():
         processing_error = True
     except ValueError:
         print("Error: Unable to convert y to float.")
+        processing_error = True
+    try:
+        client['location_id'] = request.form['location_id']
+    except KeyError:
+        print("Error: Unable to get location_id.")
         processing_error = True
     try:
         client['test_time'] = int(request.form['test_time'])
