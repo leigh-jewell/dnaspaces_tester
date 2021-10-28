@@ -35,7 +35,7 @@ def calc_distance(x1, y1, x2, y2):
     return round(distance, 1)
 
 
-def client_update(client, record_timestamp, x, y, location):
+def client_update(client, record_timestamp, x, y, location, location_id, confidence_factor):
     distance_error = calc_distance(client['x'], client['y'], x, y)
     time_delta = abs(round((record_timestamp - client['start_time']).total_seconds(), 1))
     print(f"Distance error {distance_error} time secs {time_delta} {client['start_time']} {record_timestamp}")
@@ -44,7 +44,9 @@ def client_update(client, record_timestamp, x, y, location):
                         'y': y,
                         'error': distance_error,
                         'seconds': time_delta,
-                        'location': location
+                        'location': location,
+                        'location_id': location_id,
+                        'confidence_factor': confidence_factor
                         }
     print(location_updates)
 
@@ -85,7 +87,9 @@ def get_data_from_json(json_event, client):
             x = feet_to_mts(json_event['deviceLocationUpdate']['xPos'])
             y = feet_to_mts(json_event['deviceLocationUpdate']['yPos'])
             location = json_event['deviceLocationUpdate']['location']['name']
-            result = client_update(client, time_stamp_datetime, x, y, location)
+            location_id = json_event['deviceLocationUpdate']['location']['locationId']
+            confidence_factor = feet_to_mts(json_event['deviceLocationUpdate']['confidenceFactor'])
+            result = client_update(client, time_stamp_datetime, x, y, location, location_id, confidence_factor)
         else:
             print(f"Not a device location update {json_event['eventType']}.")
     except KeyError as e:
@@ -125,6 +129,8 @@ def post_process_results(location_updates):
             y = update['y']
             error = update['error']
             location = update['location']
+            location_id = update['location_id']
+            confidence_factor = update['confidence_factor']
             if first_update:
                 prev_timestamp = timestamp
                 first_update = False
@@ -148,7 +154,9 @@ def post_process_results(location_updates):
                               'y': y,
                               'error': error,
                               'seconds': time_delta,
-                              'location': location})
+                              'location': location,
+                              'location_id': location_id,
+                              'confidence_factor': confidence_factor})
         stats['average_accuracy'] = round(total_error/number_updates, 1)
         stats['median_accuracy'] = statistics.median(accuracy_list)
         stats['precision_20'] = round(total_precision_20/number_updates, 3)*100

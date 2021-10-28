@@ -146,18 +146,22 @@
                                                 <th scope="col">Predicted Y</th>
                                                 <th scope="col">Error Distance</th>
                                                 <th scope="col">Location</th>
+                                                <th scope="col">Location Id</th>
+                                                <th scope="col">Confidence Factor (mtrs)</th>
                                                 <th scope="col">Seconds Elapsed</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {% for updates in client.location_updates %}
                                                 <tr>
-                                                   <td>{{updates.timestamp}}</td>
-                                                   <td>{{updates.x}}</td>
-                                                   <td>{{updates.y}}</td>
-                                                   <td>{{updates.error}}</td>
+                                                    <td>{{updates.timestamp}}</td>
+                                                    <td>{{updates.x}}</td>
+                                                    <td>{{updates.y}}</td>
+                                                    <td>{{updates.error}}</td>
                                                     <td>{{updates.location}}</td>
-                                                   <td>{{updates.seconds}}</td>
+                                                    <td>{{updates.location_id}}</td>
+                                                    <td>{{updates.confidence_factor}}</td>
+                                                    <td>{{updates.seconds}}</td>
                                                 </tr>
                                             {% endfor %}
                                         </tbody>
@@ -178,14 +182,6 @@
   {% block javascript %}
     <script type="text/javascript">
 
-        const map_id = {{ client.map_id }}
-        const map_width = {{ client.map_width }}
-        const map_height = {{ client.map_height }}
-        const location = {{ client.location }}
-        const url = "https://partners.dnaspaces.io/api/partners/v1/maps/" + map_id
-        fetchImageAndDisplay(url, location, map_id, map_width, map_height);
-
-
         function exportData(){
             /* Get the HTML data using Element by Id */
             var table = document.getElementById("location_updates");
@@ -203,6 +199,8 @@
                 column4 = row.cells[3].innerText;
                 column5 = row.cells[4].innerText;
                 column6 = row.cells[5].innerText;
+                column7 = row.cells[6].innerText;
+                column8 = row.cells[7].innerText;
 
             /* add a new records in the array */
                 rows.push(
@@ -212,7 +210,9 @@
                         column3,
                         column4,
                         column5,
-                        column6
+                        column6,
+                        column7,
+                        column8
                     ]
                 );
 
