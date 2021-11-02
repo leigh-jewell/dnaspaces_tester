@@ -12,6 +12,8 @@ import base64
 import io
 from io import BytesIO
 
+IMAGE_SCALE = 0.8
+
 app = Flask(__name__)
 
 # Client template
@@ -232,15 +234,16 @@ def get_updates(client, key):
     return updates_processed, number_location_updates, number_events, stats
 
 
-def get_map_id(list_updates):
+def get_location_id(list_updates):
     map_id = ""
     print(f"List of updates {list_updates}")
     for update in list_updates:
-        if "map_id" in update:
-            print(f"Map id {update['map_id']}")
-            map_id = update['map_id']
+        if "location_id" in update:
+            print(f"Location id {update['location_id']}")
+            location_id = update['location_id']
+            break
 
-    return map_id
+    return location_id
 
 
 @app.route('/track', methods=['POST'])
@@ -298,10 +301,8 @@ def track_client():
         client['location_updates'], client['number_updates'], client['total_events'], stats = get_updates(client, api_key)
         client['tracking'] = True
     print(f"Finished tracking {client['mac']}, got following events {client['number_updates'] }")
-
-    map_id = get_map_id(client['location_updates'])
-    print(f"Map Id in updates {map_id}")
-    map_img, map_width, map_height, dim_width, dim_length = get_map(map_id, api_key)
+    location_id = get_location_id(client['location_updates'])
+    map_img, map_width, map_height, dim_width, dim_length = get_map(location_id, api_key)
 
     return render_template('index.html', api_key=api_key, client=client, stats=stats,
                            img_data=map_img, img_width=map_width, img_height=map_height, dim_width=dim_width,
@@ -330,25 +331,31 @@ def down_load_file():
     return response
 
 
-def get_map(map_id, api_key):
+def get_map(location_id, api_key):
     error = False
     encoded_img_data = ""
-    print(f"get_image(): map_id {map_id}")
+    print(f"get_image(): map_id {location_id}")
     headers = {'X-API-Key': api_key}
     try:
-        request_map_info = requests.get(f"https://partners.dnaspaces.io/api/partners/v1/maps/{map_id}", headers=headers)
-        print(f"Got status code {request_map_info.status_code} from partners.dnaspaces.io.")
+        request_location_info = requests.get(f"https://partners.dnaspaces.io/api/partners/v1/locations/{location_id}",
+                                             headers=headers)
+        print(f"Got status code {request_location_info.status_code} from partners.dnaspaces.io.")
     except requests.exceptions.RequestException as e:
         print(f"Error: getting map information to partners.dnaspaces.io {e}")
         error = True
-    if not error and request_map_info.status_code == 200:
+    if not error and request_location_info.status_code == 200:
         print("Successfully got map info.")
         error = False
-        map_info = request_map_info.json()
-        print(f"Map info width {map_info['imageWidth']} height {map_info['imageHeight']}")
+        location_info = request_location_info.json()
         try:
-            img_width = float(map_info['imageWidth'])/2
-            img_height = float(map_info['imageHeight'])/2
+            map_info = location_info['locationDetails']['mapDetails']
+        except ValueError as e:
+            print(f"Error: Tried to extract mapDetails from location but got an error {e}")
+        print(f"Map info mapId {map_info['mapId']} width {map_info['imageWidth']} height {map_info['imageHeight']}")
+        try:
+            map_id = map_info['mapId']
+            img_width = float(map_info['imageWidth']) * IMAGE_SCALE
+            img_height = float(map_info['imageHeight']) * IMAGE_SCALE
             dimension_width = float(map_info['dimension']['width'])
             dimension_length = float(map_info['dimension']['length'])
         except ValueError:
