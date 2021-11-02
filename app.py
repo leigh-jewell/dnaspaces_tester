@@ -7,6 +7,10 @@ import requests
 import statistics
 import re
 import pprint
+from PIL import Image
+import base64
+import io
+from io import BytesIO
 
 app = Flask(__name__)
 
@@ -41,7 +45,7 @@ def calc_distance(x1, y1, x2, y2, real_location, predicted_location):
     return round(distance, 1)
 
 
-def client_update(client, record_timestamp, x, y, location, location_id, confidence_factor):
+def client_update(client, record_timestamp, x, y, location, location_id, confidence_factor, map_id):
     distance_error = calc_distance(client['x'], client['y'], x, y, client['location_id'], location_id)
     time_delta = abs(round((record_timestamp - client['start_time']).total_seconds(), 1))
     print(f"Distance error {distance_error} time secs {time_delta} {client['start_time']} {record_timestamp}")
@@ -52,7 +56,8 @@ def client_update(client, record_timestamp, x, y, location, location_id, confide
                         'seconds': time_delta,
                         'location': location,
                         'location_id': location_id,
-                        'confidence_factor': confidence_factor
+                        'confidence_factor': confidence_factor,
+                        'map_id': map_id
                         }
     print(location_updates)
 
@@ -95,9 +100,11 @@ def get_data_from_json(json_event, client):
             location = json_event['deviceLocationUpdate']['location']['name']
             location_id = json_event['deviceLocationUpdate']['location']['locationId']
             confidence_factor = feet_to_mts(json_event['deviceLocationUpdate']['confidenceFactor'])
-            result = client_update(client, time_stamp_datetime, x, y, location, location_id, confidence_factor)
-        else:
-            print(f"Not a device location update {json_event['eventType']}.")
+            map_id = json_event['deviceLocationUpdate']['mapId']
+            result = client_update(client, time_stamp_datetime, x, y, location, location_id, confidence_factor, map_id)
+            print(f"Device location update {json_event['eventType']} ")
+#        else:
+#            print(f"Not a device location update {json_event['eventType']}")
     except KeyError as e:
         print(f"Unable to extract all data from json. Error: {e}")
 
@@ -138,6 +145,7 @@ def post_process_results(location_updates):
             location = update['location']
             location_id = update['location_id']
             confidence_factor = update['confidence_factor']
+            map_id = update['map_id']
             if first_update:
                 prev_timestamp = timestamp
                 first_update = False
@@ -167,20 +175,26 @@ def post_process_results(location_updates):
                               'seconds': time_delta,
                               'location': location,
                               'location_id': location_id,
-                              'confidence_factor': confidence_factor})
-        if total_error > 0:
+                              'confidence_factor': confidence_factor,
+                              'map_id': map_id})
+        if total_error > 0 and number_updates > 0:
             stats['average_accuracy'] = round(total_error/number_updates, 1)
-            stats['median_accuracy'] = statistics.median(accuracy_list)
-            stats['precision_20'] = round(total_precision_20/number_updates, 3)*100
-            stats['precision_15'] = round(total_precision_15/number_updates, 3)*100
-            stats['precision_10'] = round(total_precision_10/number_updates, 3)*100
-            stats['precision_5'] = round(total_precision_5/number_updates, 3)*100
-            stats['average_latency'] = round(total_latency/number_updates-1, 1)
+            stats['median_accuracy'] = round(statistics.median(accuracy_list), 1)
+            stats['precision_20'] = get_percentage(total_precision_20, number_updates)
+            stats['precision_15'] = get_percentage(total_precision_15, number_updates)
+            stats['precision_10'] = get_percentage(total_precision_10, number_updates)
+            stats['precision_5'] = get_percentage(total_precision_5, number_updates)
+            stats['average_latency'] = round(total_latency/number_updates, 1)
             stats['median_latency'] = round(statistics.median(latency_list), 1)
         stats['floor_change'] = location_changed
         print(f"Stats: {stats}")
 
     return processed, stats
+
+
+def get_percentage(total, n):
+    percent = (total/n)*100
+    return round(percent, 1)
 
 
 def get_updates(client, key):
@@ -214,7 +228,19 @@ def get_updates(client, key):
                 print('Complete. Time taken', process_time_secs)
                 break
     updates_processed, stats = post_process_results(updates)
+
     return updates_processed, number_location_updates, number_events, stats
+
+
+def get_map_id(list_updates):
+    map_id = ""
+    print(f"List of updates {list_updates}")
+    for update in list_updates:
+        if "map_id" in update:
+            print(f"Map id {update['map_id']}")
+            map_id = update['map_id']
+
+    return map_id
 
 
 @app.route('/track', methods=['POST'])
@@ -273,7 +299,13 @@ def track_client():
         client['tracking'] = True
     print(f"Finished tracking {client['mac']}, got following events {client['number_updates'] }")
 
-    return render_template('index.html', api_key=api_key, client=client, stats=stats)
+    map_id = get_map_id(client['location_updates'])
+    print(f"Map Id in updates {map_id}")
+    map_img, map_width, map_height, dim_width, dim_length = get_map(map_id, api_key)
+
+    return render_template('index.html', api_key=api_key, client=client, stats=stats,
+                           img_data=map_img, img_width=map_width, img_height=map_height, dim_width=dim_width,
+                           dim_length=dim_length)
 
 
 @app.route('/', methods=['GET'])
@@ -296,6 +328,46 @@ def down_load_file():
     response.mimetype = 'text/csv'
 
     return response
+
+
+def get_map(map_id, api_key):
+    error = False
+    encoded_img_data = ""
+    print(f"get_image(): map_id {map_id}")
+    headers = {'X-API-Key': api_key}
+    try:
+        request_map_info = requests.get(f"https://partners.dnaspaces.io/api/partners/v1/maps/{map_id}", headers=headers)
+        print(f"Got status code {request_map_info.status_code} from partners.dnaspaces.io.")
+    except requests.exceptions.RequestException as e:
+        print(f"Error: getting map information to partners.dnaspaces.io {e}")
+        error = True
+    if not error and request_map_info.status_code == 200:
+        print("Successfully got map info.")
+        error = False
+        map_info = request_map_info.json()
+        print(f"Map info width {map_info['imageWidth']} height {map_info['imageHeight']}")
+        try:
+            img_width = float(map_info['imageWidth'])/2
+            img_height = float(map_info['imageHeight'])/2
+            dimension_width = float(map_info['dimension']['width'])
+            dimension_length = float(map_info['dimension']['length'])
+        except ValueError:
+            print("Image width and height not returned.")
+            error = True
+        try:
+            r = requests.get(f"https://partners.dnaspaces.io/api/partners/v1/maps/{map_id}/image", headers=headers)
+            print(f"Got status code {r.status_code} from partners.dnaspaces.io.")
+        except requests.exceptions.RequestException as e:
+            print(f"Error: getting map from partners.dnaspaces.io {e}")
+            error = True
+        if not error and r.status_code == 200:
+            print("Successfully got map image. Converting image.")
+            im = Image.open(BytesIO(r.content))
+            data = io.BytesIO()
+            im.save(data, "JPEG")
+            encoded_img_data = base64.b64encode(data.getvalue())
+
+    return encoded_img_data.decode('utf-8'), img_width, img_height, dimension_width, dimension_length
 
 
 if __name__ == '__main__':
