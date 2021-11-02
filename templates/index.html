@@ -273,6 +273,7 @@
                 .attr('width', "{{ img_width }}")
                 .attr('heigh', "{{ img_height }}")
                 .attr("class", "bg-image")
+                .style("opacity", 0.5)
 
             console.log("plotDevices(): called", data);
             var mapId = "bd1a589f2b97d0b4eb03fcbebb0f4591";
@@ -299,7 +300,7 @@
                 .data(data)
                 .enter()
                 .append("circle")
-                .attr("r", 10)
+                .attr("r", 4)
                 .attr("cx", function(d){ return xScale(d.x)})
                 .attr("cy", function(d){ return yScale(d.y)})
                 .style("fill", "lime")
@@ -311,7 +312,7 @@
             d3.select("g")
                .append("circle")
                 .attr("id", "real_position")
-               .attr("r", 10)
+               .attr("r", 5)
                .attr("cx", xScale({{ client.x }}))
                .attr("cy", yScale({{ client.y }}))
                .style("fill", "red")
