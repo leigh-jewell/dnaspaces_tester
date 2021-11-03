@@ -334,7 +334,7 @@ def track_client():
 
 @app.route('/', methods=['GET'])
 def get_home_page():
-    return render_template('index.html', api_key="API KEY", client=client_template,
+    return render_template('index.html', api_key="API KEY", client=client_template, stats={},
                            img_data="", img_width=0.0, img_height=0.0, dim_width=0.0,
                            dim_length=0.0
                            )
