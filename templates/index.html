@@ -264,6 +264,11 @@
         function plotDevices(){
             let data = {{ client.location_updates|tojson|safe }}
             const map = "data:image/jpg;base64," + "{{ img_data }}";
+            const dim_width = {{ dim_width | safe }};
+            const dim_length = {{ dim_length | safe }};
+            const img_width = {{ img_width| safe }};
+            const img_height = {{ img_height | safe }};
+            console.log("Dimension width, length, Image width height", dim_width, dim_length, img_width, img_height);
 
             d3.select("#image")
                 .append('image')
@@ -290,8 +295,9 @@
             var yScale = d3.scaleLinear()
                 .domain([{{ dim_length }}, 0])
                 .range([height, 0]);
-            console.log("plotDevices(): x value 100 scaled to ", xScale(100));
-            console.log("plotDevices(): y value 100 scaled to ", yScale(100));
+
+            console.log("plotDevices(): x value 50.8 scaled to ", xScale(50.8));
+            console.log("plotDevices(): y value 34.8 scaled to ", yScale(34.8));
 
             d3.select("#image")
                 .append("g")

@@ -356,8 +356,8 @@ def get_map(location_id, api_key):
             map_id = map_info['mapId']
             img_width = float(map_info['imageWidth']) * IMAGE_SCALE
             img_height = float(map_info['imageHeight']) * IMAGE_SCALE
-            dimension_width = float(map_info['dimension']['width'])
-            dimension_length = float(map_info['dimension']['length'])
+            dimension_width = feet_to_mts(float(map_info['dimension']['width']))
+            dimension_length = feet_to_mts(float(map_info['dimension']['length']))
         except ValueError:
             print("Image width and height not returned.")
             error = True
