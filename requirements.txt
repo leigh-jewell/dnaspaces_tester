@@ -2,3 +2,4 @@ requests~=2.26.0
 Flask~=2.0.2
 Pillow~=8.4.0
 PyJWT~=2.3.0
+progressbar~=2.5

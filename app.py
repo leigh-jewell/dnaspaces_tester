@@ -21,6 +21,7 @@ client_template = {
     "mac": "aa:bb:cc:dd:ee:ff",
     "x": 0.0,
     "y": 0.0,
+    "unit": "feet",
     "test_time": 10,
     "start_time": None,
     "number_updates": 0,
@@ -86,7 +87,10 @@ def activate_app():
             api_key = process_activation(token)
         else:
             print("Form didn't provide api_key or token.")
-        return render_template('index.html', api_key=api_key, client=client_template)
+        return render_template('index.html', api_key=api_key, client=client_template,
+                               img_data="", img_width=0.0, img_height=0.0, dim_width=0.0,
+                               dim_length=0.0
+                               )
 
 
 def get_data_from_json(json_event, client):
@@ -217,15 +221,16 @@ def get_updates(client, key):
             number_events += 1
             # Extract the data from the event
             data = json.loads(line)
-            print(f"Got data from dnaspaces:")
-            pprint.pprint(data)
+#            pprint.pprint(data)
             result = get_data_from_json(data, client)
             # Check if any interesting events are returned.
             if len(result) > 0:
                 updates.append(result)
                 number_location_updates += 1
             # Check how long we have been reading the events for and stop if its longer than the test time
-            process_time_secs = round((dt.now() - start_time).total_seconds(), 1)
+            process_time_secs = round((dt.now() - start_time).total_seconds(), 0)
+            print(f"Progress - {round((process_time_secs/client['test_time'])*100,1)}% complete. "
+                  f"Total events {number_events} interesting events {number_location_updates}")
             if process_time_secs > client['test_time']:
                 print('Complete. Time taken', process_time_secs)
                 break
@@ -252,6 +257,7 @@ def track_client():
     processing_error = False
     client = client_template
     # Start tracking a client on the firehose API
+    print(request.form)
     try:
         api_key = request.form['api_key']
     except KeyError:
@@ -283,15 +289,25 @@ def track_client():
         print("Error: Unable to convert y to float.")
         processing_error = True
     try:
+        if request.form['measurement'] == "feet":
+            client['x'] = feet_to_mts(client['x'])
+            client['y'] = feet_to_mts(client['y'])
+            client['unit'] = "feet"
+            print(f"Converted real x,y to metres {client['x']} {client['y']}")
+        else:
+            client['unit'] = "metre"
+    except ValueError as e:
+        print("Error: measurement input missing. Assuming metres.")
+    try:
         client['location_id'] = request.form['location_id']
     except KeyError:
         print("Error: Unable to get location_id.")
-        processing_error = True
+        client['location_id'] = ""
     try:
         client['test_time'] = int(request.form['test_time'])
     except KeyError:
         print("Error: Unable to get test_time.")
-        processing_error = True
+        client['test_time'] = 10
     except ValueError:
         print("Error: Unable to test_time to int.")
         processing_error = True
@@ -301,8 +317,15 @@ def track_client():
         client['location_updates'], client['number_updates'], client['total_events'], stats = get_updates(client, api_key)
         client['tracking'] = True
     print(f"Finished tracking {client['mac']}, got following events {client['number_updates'] }")
-    location_id = get_location_id(client['location_updates'])
-    map_img, map_width, map_height, dim_width, dim_length = get_map(location_id, api_key)
+    if client['location_id'] == "":
+        location_id = get_location_id(client['location_updates'])
+        client['location_id'] = location_id
+    map_img, map_width, map_height, dim_width, dim_length = get_map(client['location_id'], api_key)
+
+    if client['unit'] == "feet":
+        print("Converting real location back to feet.")
+        client['x'] = round(client['x'] * 3.3, 1)
+        client['y'] = round(client['y'] * 3.3, 1)
 
     return render_template('index.html', api_key=api_key, client=client, stats=stats,
                            img_data=map_img, img_width=map_width, img_height=map_height, dim_width=dim_width,
@@ -311,7 +334,10 @@ def track_client():
 
 @app.route('/', methods=['GET'])
 def get_home_page():
-    return render_template('index.html', api_key="API KEY", client=client_template)
+    return render_template('index.html', api_key="API KEY", client=client_template,
+                           img_data="", img_width=0.0, img_height=0.0, dim_width=0.0,
+                           dim_length=0.0
+                           )
 
 
 @app.route('/download', methods=['POST'])
@@ -358,6 +384,7 @@ def get_map(location_id, api_key):
             img_height = float(map_info['imageHeight']) * IMAGE_SCALE
             dimension_width = feet_to_mts(float(map_info['dimension']['width']))
             dimension_length = feet_to_mts(float(map_info['dimension']['length']))
+            print(f"Image width {img_width} image height {img_height} floor width (mtrs) {dimension_width} floor length (mtrs) {dimension_length}")
         except ValueError:
             print("Image width and height not returned.")
             error = True

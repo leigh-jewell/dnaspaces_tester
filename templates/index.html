@@ -21,7 +21,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
     <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 
     <title>Cisco DNA Spaces Accuracy Test Tool</title>
@@ -31,57 +31,135 @@
         <div class="col">
         <div class="card-group">
             <div class="card">
-                <h5 class="card-header">Cisco DNA Spaces Firehose Accuracy Tool</h5>
+                <h5 class="card-header">Cisco DNA Spaces Firehose Accuracy Tool - Activation</h5>
                     <div class="card-body">
                         <h5 class="card-title">Activate Firehose App to get API Key</h5>
                           <form action="/activate" method=post>
                             <dl>
-                                <dt>Firehose Activation Token:</dt>
-                                    <dd><input class="form-control" placeholder="App Activation Token"  type=text name=token>
-                                    <dd><input class="btn btn-primary" type=submit name="Activate" value="Activate"></dd>
+                            <div class="input-group mb-3">
+                              <div class="input-group-prepend">
+                                <span class="input-group-text">Firehose Activation Token</span>
+                              </div>
+                                <input type="text" class="form-control" placeholder="App Activation Token"  type=text name=token>
+                                <input class="btn btn-primary" type=submit name="Activate" value="Activate"></dd>
+                            </div>
                             </dl>
                           </form>
-                    </div>
-            </div>
-            <div class="card">
-                <h5 class="card-header">Summary Statisitics</h5>
-                    <div class="card-body">
-                    <h5 class="card-title">Calculate location update</h5>
+
                   <p class="card-text">Provide your MAC address, X and Y coordinates on the map and hit start. The output will include a table of location errors for each
                   new location update from DNA Spaces and the time since the start button his hit. </p>
                     {% if client.tracking %}
                         <form action="/track" method=post>
                             <dl>
-                            <dt>Firehose API Key:
-                            <dd><input class="form-control" value={{ api_key }} name="api_key" type="text"></dd>
-                            <dt>MAC Address:
-                            <dd><input class="form-control" value={{ client.mac }} type=text length="17" name=mac_address>
-                            <dt>Real X-Coordinate (Mtrs):
-                            <dd><input class="form-control" value={{ client.x}}  type=number step="0.01" name=x_coordinates>
-                            <dt>Real Y-Coordinate (Mtrs):
-                            <dd><input class="form-control" value={{ client.y }}  type=number step="0.01" name=y_coordinates>
-                            <dt>Location Id:
-                            <dd><input class="form-control" value={{ client.location_id }}  type="text" name=location_id>
-                            <dt>Time to test (sec):
-                            <dd><input class="form-control" value={{ client.test_time }}  type=number step="0" name=test_time>
+                            <div class="input-group mb-3">
+                              <div class="input-group-prepend">
+                                <span class="input-group-text">Firehose API Key</span>
+                              </div>
+                              <input type="text" class="form-control" value="{{ api_key }}" name="api_key" type="text">
+                            </div>
+
+                            <div class="input-group mb-3">
+                              <div class="input-group-prepend">
+                                <span class="input-group-text">MAC Address</span>
+                              </div>
+                              <input class="form-control" value="{{ client.mac }}" type=text length="17" name=mac_address>
+                            </div>
+
+                            <div class="input-group mb-3">
+                              <div class="input-group-prepend">
+                                <span class="input-group-text">Real Coordinates (x,y)</span>
+                              </div>
+                              <input type="number" value="{{ client.x }}" step="0.1" class="form-control" name=x_coordinates>
+                              <input type="number" value="{{ client.y }}" step="0.1" class="form-control" name=y_coordinates >
+
+                                 <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                                  <label class="btn btn-secondary active">
+                                  {% if client.unit == "feet" %}
+                                    <input type="radio" name="measurement" value="feet" autocomplete="off" checked> Feet
+                                  </label>
+                                  <label class="btn btn-secondary">
+                                    <input type="radio" name="measurement" value="metres" autocomplete="off"> Metres
+                                  {% else %}
+                                    <input type="radio" name="measurement" value="feet" autocomplete="off"> Feet
+                                  </label>
+                                  <label class="btn btn-secondary">
+                                    <input type="radio" name="measurement" value="metres" autocomplete="off" checked> Metres
+                                  {% endif %}
+                                  </label>
+                                </div>
+                            </div>
+
+                            <div class="input-group mb-3">
+                              <div class="input-group-prepend">
+                                <span class="input-group-text">Location Id</span>
+                              </div>
+                              <input class="form-control" value={{ client.location_id }}  type=text name=location_id>
+                            </div>
+
+                            <div class="input-group mb-3">
+                              <div class="input-group-prepend">
+                                <span class="input-group-text">Time to test (sec)</span>
+                              </div>
+                              <input class="form-control" value={{ client.test_time }}  type=number step="0" name=test_time>
+                            </div>
+
                             <dd><input class="btn btn-primary" type=submit name="submit" value="Track">
                             </dl>
                         </form>
                     {% else %}
                         <form action="/track" method=post>
                             <dl>
-                            <dt>Firehose API Key:
-                            <dd><input class="form-control" value={{ api_key }} name="api_key" type="text"></dd>
-                            <dt>MAC Address:
-                            <dd><input class="form-control" placeholder="aa:bb:cc:dd:ee:ff:11" type="text"   length="17" name=mac_address>
-                            <dt>Real X-Coordinate (Mtrs):
-                            <dd><input class="form-control" placeholder="10"  type=number step="0.1" name=x_coordinates>
-                            <dt>Real Y-Coordinate (Mtrs):
-                            <dd><input class="form-control" placeholder="10"  type=number step="0.1" name=y_coordinates>
-                            <dt>Location Id:
-                            <dd><input class="form-control" placeholder="Floor"  type="text" name=location_id>
-                            <dt>Time to test (sec):
-                            <dd><input class="form-control" value="10"  type=number step="0" name=test_time>
+                            <div class="input-group mb-3">
+                              <div class="input-group-prepend">
+                                <span class="input-group-text">Firehose API Key</span>
+                              </div>
+                              <input type="text" class="form-control" placeholder="API" name="api_key" type="text">
+                            </div>
+
+                            <div class="input-group mb-3">
+                              <div class="input-group-prepend">
+                                <span class="input-group-text">MAC Address</span>
+                              </div>
+                              <input class="form-control" placeholder="aa:bb:cc:dd:ee:ff:11" type=text length="17" name=mac_address>
+                            </div>
+
+                            <div class="input-group mb-3">
+                              <div class="input-group-prepend">
+                                <span class="input-group-text">Real Coordinates (x,y)</span>
+                              </div>
+                              <input type="number" placeholder="X Co-ordinates" step="0.1" class="form-control" name=x_coordinates>
+                              <input type="number" placeholder="Y Co-ordinates" step="0.1" class="form-control" name=y_coordinates >
+                                 <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                                  <label class="btn btn-secondary active">
+                                  {% if client.unit == "feet" %}
+                                    <input type="radio" name="measurement" value="feet" autocomplete="off" checked> Feet
+                                  </label>
+                                  <label class="btn btn-secondary">
+                                    <input type="radio" name="measurement" value="metres" autocomplete="off"> Metres
+                                  {% else %}
+                                    <input type="radio" name="measurement" value="feet" autocomplete="off"> Feet
+                                  </label>
+                                  <label class="btn btn-secondary">
+                                    <input type="radio" name="measurement" value="metres" autocomplete="off" checked> Metres
+                                  {% endif %}
+                                  </label>
+                                </div>
+                            </div>
+
+                            <div class="input-group mb-3">
+                              <div class="input-group-prepend">
+                                <span class="input-group-text">Location Id</span>
+                              </div>
+                              <input class="form-control" placeholder="Location Id (if known)" type=text name=location_id>
+                            </div>
+
+                            <div class="input-group mb-3">
+                              <div class="input-group-prepend">
+                                <span class="input-group-text">Time to test (sec)</span>
+                              </div>
+                              <input class="form-control" placeholder="10" type=number step="0" name=test_time>
+                            </div>
+
                             <dd><input class="btn btn-primary" type=submit name="submit" value="Track">
                             </dl>
                         </form>
@@ -203,9 +281,7 @@
     <!-- Optional JavaScript -->
     <script src="https://d3js.org/d3.v5.min.js"></script>
     <!-- jQuery first, then Popper.js, then Bootstrap JS -->
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
   {% block javascript %}
     <script type="text/javascript">
 
@@ -263,73 +339,74 @@
 
         function plotDevices(){
             let data = {{ client.location_updates|tojson|safe }}
-            const map = "data:image/jpg;base64," + "{{ img_data }}";
-            const dim_width = {{ dim_width | safe }};
-            const dim_length = {{ dim_length | safe }};
-            const img_width = {{ img_width| safe }};
-            const img_height = {{ img_height | safe }};
-            console.log("Dimension width, length, Image width height", dim_width, dim_length, img_width, img_height);
+            if (data.length > 0) {
+                const map = "data:image/jpg;base64," + "{{ img_data }}";
+                const dim_width = {{ dim_width | safe }};
+                const dim_length = {{ dim_length | safe }};
+                const img_width = {{ img_width| safe }};
+                const img_height = {{ img_height | safe }};
+                console.log("Dimension width, length, Image width height", dim_width, dim_length, img_width, img_height);
 
-            d3.select("#image")
-                .append('image')
-                .attr("y","0")
-                .attr("x","0")
-                .attr('xlink:href', map)
-                .attr('width', "{{ img_width }}")
-                .attr('heigh', "{{ img_height }}")
-                .attr("class", "bg-image")
-                .style("opacity", 0.5)
+                d3.select("#image")
+                    .append('image')
+                    .attr("y","0")
+                    .attr("x","0")
+                    .attr('xlink:href', map)
+                    .attr('width', "{{ img_width }}")
+                    .attr('heigh', "{{ img_height }}")
+                    .attr("class", "bg-image")
+                    .style("opacity", 0.5)
 
-            console.log("plotDevices(): called", data);
-            var mapId = "bd1a589f2b97d0b4eb03fcbebb0f4591";
+                console.log("plotDevices(): called", data);
+                var mapId = "bd1a589f2b97d0b4eb03fcbebb0f4591";
 
-            var margin = {top: 0, right: 0, bottom: 0, left: 0},
-                width = {{ img_width }} - margin.left - margin.right;
-                height = {{ img_height }} - margin.top - margin.bottom;
+                var margin = {top: 0, right: 0, bottom: 0, left: 0},
+                    width = {{ img_width }} - margin.left - margin.right;
+                    height = {{ img_height }} - margin.top - margin.bottom;
 
-            // set the ranges
-            var xScale = d3.scaleLinear()
-                .domain([0, {{ dim_width }}])
-                .range([0, width]);
+                // set the ranges
+                var xScale = d3.scaleLinear()
+                    .domain([0, {{ dim_width }}])
+                    .range([0, width]);
 
-            var yScale = d3.scaleLinear()
-                .domain([{{ dim_length }}, 0])
-                .range([height, 0]);
+                var yScale = d3.scaleLinear()
+                    .domain([{{ dim_length }}, 0])
+                    .range([height, 0]);
 
-            console.log("plotDevices(): x value 50.8 scaled to ", xScale(50.8));
-            console.log("plotDevices(): y value 34.8 scaled to ", yScale(34.8));
+                console.log("plotDevices(): x value 50.8 scaled to ", xScale(50.8));
+                console.log("plotDevices(): y value 34.8 scaled to ", yScale(34.8));
 
-            d3.select("#image")
-                .append("g")
-                .attr("id", "devices")
-                .selectAll("circle")
-                .data(data)
-                .enter()
-                .append("circle")
-                .attr("r", 4)
-                .attr("cx", function(d){ return xScale(d.x)})
-                .attr("cy", function(d){ return yScale(d.y)})
-                .style("fill", "lime")
-                .style("opacity", 0.5)
-                .style("stroke", "darkgreen");
+                d3.select("#image")
+                    .append("g")
+                    .attr("id", "devices")
+                    .selectAll("circle")
+                    .data(data)
+                    .enter()
+                    .append("circle")
+                    .attr("r", 4)
+                    .attr("cx", function(d){ return xScale(d.x)})
+                    .attr("cy", function(d){ return yScale(d.y)})
+                    .style("fill", "lime")
+                    .style("opacity", 0.5)
+                    .style("stroke", "darkgreen");
 
-            console.log("Plot real x, y", {{ client.x }}, {{ client.y }});
+                console.log("Plot real x, y", {{ client.x }}, {{ client.y }});
 
-            d3.select("g")
-               .append("circle")
-                .attr("id", "real_position")
-               .attr("r", 5)
-               .attr("cx", xScale({{ client.x }}))
-               .attr("cy", yScale({{ client.y }}))
-               .style("fill", "red")
+                d3.select("g")
+                   .append("circle")
+                    .attr("id", "real_position")
+                   .attr("r", 5)
+                   .attr("cx", xScale({{ client.x }}))
+                   .attr("cy", yScale({{ client.y }}))
+                   .style("fill", "red")
 
-            d3.select("#real_position")
-                .append("text")
-                .attr("dx", xScale({{ client.x }} - 20))
-                .text("Real:({{ client.x }}, {{ client.y }})");
+                d3.select("#real_position")
+                    .append("text")
+                    .attr("dx", xScale({{ client.x }} - 20))
+                    .text("Real:({{ client.x }}, {{ client.y }})");
 
-        }
-
+            }
+    }
   </script>
   {% endblock %}
 
