@@ -18,7 +18,8 @@ app = Flask(__name__)
 
 # Client template
 client_template = {
-    "mac": "aa:bb:cc:dd:ee:ff",
+    "search_mode": True,
+    "mac": "",
     "x": 0.0,
     "y": 0.0,
     "unit": "feet",
@@ -48,11 +49,13 @@ def calc_distance(x1, y1, x2, y2, real_location, predicted_location):
     return round(distance, 1)
 
 
-def client_update(client, record_timestamp, x, y, location, location_id, confidence_factor, map_id):
+def client_update(client, record_timestamp, x, y, location, location_id, confidence_factor, map_id, mac, username):
     distance_error = calc_distance(client['x'], client['y'], x, y, client['location_id'], location_id)
     time_delta = abs(round((record_timestamp - client['start_time']).total_seconds(), 1))
     print(f"Distance error {distance_error} time secs {time_delta} {client['start_time']} {record_timestamp}")
     location_updates = {'timestamp': record_timestamp,
+                        'mac': mac,
+                        'username': username,
                         'x': x,
                         'y': y,
                         'error': distance_error,
@@ -96,21 +99,27 @@ def activate_app():
 def get_data_from_json(json_event, client):
     number_location_updates = 0
     result = []
+    username = ""
+    print(f"Device location update {json_event}")
     try:
         if json_event['eventType'] == "DEVICE_LOCATION_UPDATE" \
-                and json_event['deviceLocationUpdate']['device']['macAddress'] == client['mac']:
+                and (client['search_mode'] or
+                     json_event['deviceLocationUpdate']['device']['macAddress'] == client['mac']):
             number_location_updates += 1
             time_stamp_datetime = dt.fromtimestamp(json_event['recordTimestamp'] / 1000)
+            mac = json_event['deviceLocationUpdate']['device']['macAddress']
+            username = json_event['deviceLocationUpdate']['rawUserId']
             x = feet_to_mts(json_event['deviceLocationUpdate']['xPos'])
             y = feet_to_mts(json_event['deviceLocationUpdate']['yPos'])
             location = json_event['deviceLocationUpdate']['location']['name']
             location_id = json_event['deviceLocationUpdate']['location']['locationId']
             confidence_factor = feet_to_mts(json_event['deviceLocationUpdate']['confidenceFactor'])
             map_id = json_event['deviceLocationUpdate']['mapId']
-            result = client_update(client, time_stamp_datetime, x, y, location, location_id, confidence_factor, map_id)
-            print(f"Device location update {json_event['eventType']} ")
-#        else:
-#            print(f"Not a device location update {json_event['eventType']}")
+            result = client_update(client, time_stamp_datetime, x, y, location, location_id, confidence_factor,
+                                   map_id, mac, username)
+            print(f"Device location update {json_event['eventType']} {username}")
+        else:
+            print(f"Not a device location update {json_event['eventType']}")
     except KeyError as e:
         print(f"Unable to extract all data from json. Error: {e}")
 
@@ -145,6 +154,8 @@ def post_process_results(location_updates):
         for update in location_updates:
             number_updates += 1
             timestamp = update['timestamp']
+            mac = update['mac']
+            username = update['username']
             x = update['x']
             y = update['y']
             error = update['error']
@@ -175,6 +186,8 @@ def post_process_results(location_updates):
                 if error <= 5.0:
                     total_precision_5 += 1
             processed.append({'timestamp': timestamp_formatted,
+                              'mac': mac,
+                              'username': username,
                               'x': x,
                               'y': y,
                               'error': error,
@@ -201,6 +214,26 @@ def post_process_results(location_updates):
 def get_percentage(total, n):
     percent = (total/n)*100
     return round(percent, 1)
+
+
+def get_samples(key):
+    number_events = 0
+    number_location_updates = 0
+    headers = {'X-API-Key': key}
+    # Connect to API
+    stream_api = requests.get('https://partners.dnaspaces.io/api/partners/v1/firehose/events',
+                              stream=True, headers=headers)
+    print(f"Got status code {stream_api.status_code} from partners.dnaspaces.io.")
+    # Remember time we started.
+    start_time = dt.now()
+    if stream_api.status_code == 200:
+        # Read in an update from Firehose API
+        for line in stream_api.iter_lines():
+            number_events += 1
+
+    return render_template('index.html', api_key=api_key, client=client, stats=stats,
+                           img_data=map_img, img_width=map_width, img_height=map_height, dim_width=dim_width,
+                           dim_length=dim_length)
 
 
 def get_updates(client, key):
@@ -241,6 +274,7 @@ def get_updates(client, key):
 
 def get_location_id(list_updates):
     map_id = ""
+    location_id = ""
     print(f"List of updates {list_updates}")
     for update in list_updates:
         if "location_id" in update:
@@ -251,11 +285,11 @@ def get_location_id(list_updates):
     return location_id
 
 
-@app.route('/track', methods=['POST'])
+@app.route('/', methods=['POST'])
 def track_client():
     stats = {}
     processing_error = False
-    client = client_template
+    client = client_template.copy()
     # Start tracking a client on the firehose API
     print(request.form)
     try:
@@ -266,9 +300,13 @@ def track_client():
     print(f"Track client with {api_key}")
     try:
         client['mac'] = request.form['mac_address']
-        if not re.match("[0-9a-f]{2}([-:]?)[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", client['mac'].lower()):
-            print("Error: Not a valid mac address.")
-            processing_error = True
+        if len(client['mac']) > 0 and re.match("[0-9a-f]{2}([-:]?)[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", client['mac'].lower()):
+            print("Got valid mac address.")
+            client['search_mode'] = False
+        else:
+            print(f"No MAC address provided. Search mode activated.")
+            client['mac'] = ""
+            client['search_mode'] = True
     except KeyError:
         print(f"Error: No mac address.")
         processing_error = True
@@ -316,11 +354,11 @@ def track_client():
     if not processing_error:
         client['location_updates'], client['number_updates'], client['total_events'], stats = get_updates(client, api_key)
         client['tracking'] = True
-    print(f"Finished tracking {client['mac']}, got following events {client['number_updates'] }")
-    if client['location_id'] == "":
-        location_id = get_location_id(client['location_updates'])
-        client['location_id'] = location_id
-    map_img, map_width, map_height, dim_width, dim_length = get_map(client['location_id'], api_key)
+        print(f"Finished tracking {client['mac']}, got following events {client['number_updates'] }")
+        if client['location_id'] == "":
+            location_id = get_location_id(client['location_updates'])
+            client['location_id'] = location_id
+        map_img, map_width, map_height, dim_width, dim_length = get_map(client['location_id'], api_key)
 
     if client['unit'] == "feet":
         print("Converting real location back to feet.")
@@ -334,7 +372,8 @@ def track_client():
 
 @app.route('/', methods=['GET'])
 def get_home_page():
-    return render_template('index.html', api_key="API KEY", client=client_template, stats={},
+    print(client_template)
+    return render_template('index.html', api_key="", client=client_template, stats={},
                            img_data="", img_width=0.0, img_height=0.0, dim_width=0.0,
                            dim_length=0.0
                            )
@@ -344,7 +383,6 @@ def get_home_page():
 def down_load_file():
     csv = "seconds, error\n"
     print(f"Returned {request.form['client']}")
-#    client = ast.literal_eval(request.form['client'])
     client = {'seconds': 1, 'error': 2}
     for row in client['location_updates']:
         print(row)
@@ -360,8 +398,13 @@ def down_load_file():
 def get_map(location_id, api_key):
     error = False
     encoded_img_data = ""
-    print(f"get_image(): map_id {location_id}")
+    decode_img_data = ""
+    print(f"get_image(): loction id {location_id}")
     headers = {'X-API-Key': api_key}
+    img_width = 0
+    img_height = 0
+    dimension_width = 0
+    dimension_length = 0
     try:
         request_location_info = requests.get(f"https://partners.dnaspaces.io/api/partners/v1/locations/{location_id}",
                                              headers=headers)
@@ -400,8 +443,9 @@ def get_map(location_id, api_key):
             data = io.BytesIO()
             im.save(data, "JPEG")
             encoded_img_data = base64.b64encode(data.getvalue())
+            decode_img_data = encoded_img_data.decode('utf-8')
 
-    return encoded_img_data.decode('utf-8'), img_width, img_height, dimension_width, dimension_length
+    return decode_img_data, img_width, img_height, dimension_width, dimension_length
 
 
 if __name__ == '__main__':
