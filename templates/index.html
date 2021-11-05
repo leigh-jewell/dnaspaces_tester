@@ -60,28 +60,28 @@
                               <div class="input-group-prepend">
                                 <span class="input-group-text">MAC Address</span>
                               </div>
-                              <input class="form-control" value="{{ client.mac | safe }}" placeholder="aa:bb:cc:dd:ee:ff" id="mac_address" type=text length="17" name=mac_address>
+                              <input class="form-control" value="{{ client.mac | safe }}" placeholder="aa:bb:cc:dd:ee:ff or blank for search mode." id="mac_address" type=text length="17" name=mac_address>
                             </div>
 
                             <div class="input-group mb-3">
                               <div class="input-group-prepend">
                                 <span class="input-group-text">Real Coordinates (x,y)</span>
                               </div>
-                              <input type="number" value="{{ client.x }}" step="0.1" class="form-control" name=x_coordinates>
-                              <input type="number" value="{{ client.y }}" step="0.1" class="form-control" name=y_coordinates >
+                              <input type="number" value="{{ client.x }}" step="0.1" id="real_x" class="form-control" name=x_coordinates>
+                              <input type="number" value="{{ client.y }}" step="0.1" id="real_y" class="form-control" name=y_coordinates >
 
                                  <div class="btn-group btn-group-toggle" data-toggle="buttons">
                                   <label class="btn btn-secondary active">
                                   {% if client.unit == "feet" %}
-                                    <input type="radio" name="measurement" value="feet" autocomplete="off" checked> Feet
+                                    <input type="radio" name="measurement" id="measurement_feet" value="feet" autocomplete="off" checked> Feet
                                   </label>
                                   <label class="btn btn-secondary">
-                                    <input type="radio" name="measurement" value="metres" autocomplete="off"> Metres
+                                    <input type="radio" name="measurement" id="measurement_metres" value="metres" autocomplete="off"> Metres
                                   {% else %}
-                                    <input type="radio" name="measurement" value="feet" autocomplete="off"> Feet
+                                    <input type="radio" name="measurement" id="measurement_feet" value="feet" autocomplete="off"> Feet
                                   </label>
                                   <label class="btn btn-secondary">
-                                    <input type="radio" name="measurement" value="metres" autocomplete="off" checked> Metres
+                                    <input type="radio" name="measurement" id="measurement_metres" value="metres" autocomplete="off" checked> Metres
                                   {% endif %}
                                   </label>
                                 </div>
@@ -91,7 +91,7 @@
                               <div class="input-group-prepend">
                                 <span class="input-group-text">Location Id</span>
                               </div>
-                              <input class="form-control" value="{{ client.location_id | safe }}"  placeholder="Location Id (if known)" type=text name=location_id>
+                              <input class="form-control" value="{{ client.location_id | safe }}"  id="location_id" placeholder="Location Id (if known)" type=text name=location_id>
                             </div>
 
                             <div class="input-group mb-3">
@@ -197,7 +197,7 @@
                     </div>
                 </div>
           </div>
-            <table class="table table-striped" id="location_updates">
+            <table class="table table-striped table-hover" id="location_updates">
                 <thead>
                     <tr>
                         <th scope="col">Timestamp</th>
@@ -214,7 +214,7 @@
                 </thead>
                 <tbody>
                     {% for updates in client.location_updates %}
-                        <tr>
+                        <tr onclick="macSelectedTable(this)">
                             <td>{{updates.timestamp}}</td>
                             <td>{{updates.mac}}</td>
                             <td>{{updates.username}}</td>
@@ -239,6 +239,21 @@
     <!-- jQuery first, then Popper.js, then Bootstrap JS -->
   {% block javascript %}
     <script type="text/javascript">
+
+        function macSelectedTable(row) {
+            let mac_search = document.getElementById("mac_address");
+            let location_id_search = document.getElementById("location_id");
+            let real_x = document.getElementById("real_x");
+            let real_y = document.getElementById("real_y");
+            let measurement_metres = document.getElementById("measurement_metres");
+            console.log("macSelectedTable(): ", row.rowIndex, row.cells[1].innerText, row.cells[6].innerText);
+            mac_search.value = row.cells[1].innerText
+            location_id_search.value = row.cells[7].innerText
+            real_x.value = row.cells[3].innerText
+            real_y.value = row.cells[4].innerText
+            measurement_metres.checked = true;
+        }
+
         function myFunction() {
           // Declare variables
           var input, filter, table, tr, td, i, txtValue, username, mac, location, location_id, col;
@@ -303,6 +318,8 @@
                 column6 = row.cells[5].innerText;
                 column7 = row.cells[6].innerText;
                 column8 = row.cells[7].innerText;
+                column9 = row.cells[8].innerText;
+                column10 = row.cells[9].innerText;
 
                 /* add a new records in the array */
                 rows.push(
@@ -314,7 +331,9 @@
                         column5,
                         column6,
                         column7,
-                        column8
+                        column8,
+                        column9,
+                        column10
                     ]
                 );
 
@@ -332,7 +351,6 @@
             link.setAttribute("href", encodedUri);
             link.setAttribute("download", "DNASpaces_Accuracy_Report.csv");
             document.body.appendChild(link);
-            /* download the data file named "Stock_Price_Report.csv" */
             link.click();
         }
 
