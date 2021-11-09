@@ -12,7 +12,7 @@ import base64
 import io
 from io import BytesIO
 
-IMAGE_SCALE = 0.8
+IMAGE_SCALE = 0.5
 
 app = Flask(__name__)
 
@@ -96,12 +96,25 @@ def activate_app():
                                )
 
 
+def get_location(event):
+    location = "UNKNOWN"
+    try:
+        location = ">".join(
+            (event['deviceLocationUpdate']['location']['parent']['parent']['name'],
+             event['deviceLocationUpdate']['location']['parent']['name'],
+             event['deviceLocationUpdate']['location']['name']))
+    except KeyError as e:
+        print(f"get_location(): ERROR: KeyError {e} when trying to extract location from {event}.")
+    return location
+
+
 def get_data_from_json(json_event, client):
     number_location_updates = 0
     result = []
     username = ""
     print(f"Device location update {json_event}")
     try:
+        print(json_event['deviceLocationUpdate']['location'])
         if json_event['eventType'] == "DEVICE_LOCATION_UPDATE" \
                 and (client['search_mode'] or
                      json_event['deviceLocationUpdate']['device']['macAddress'] == client['mac']):
@@ -111,7 +124,7 @@ def get_data_from_json(json_event, client):
             username = json_event['deviceLocationUpdate']['rawUserId']
             x = feet_to_mts(json_event['deviceLocationUpdate']['xPos'])
             y = feet_to_mts(json_event['deviceLocationUpdate']['yPos'])
-            location = json_event['deviceLocationUpdate']['location']['name']
+            location = get_location(json_event)
             location_id = json_event['deviceLocationUpdate']['location']['locationId']
             confidence_factor = feet_to_mts(json_event['deviceLocationUpdate']['confidenceFactor'])
             map_id = json_event['deviceLocationUpdate']['mapId']
