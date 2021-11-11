@@ -13,7 +13,7 @@ import io
 from io import BytesIO
 
 IMAGE_SCALE = 0.5
-
+MAX_EVENTS = 100
 app = Flask(__name__)
 
 # Client template
@@ -22,6 +22,8 @@ client_template = {
     "mac": "",
     "x": 0.0,
     "y": 0.0,
+    "ssid": "",
+    "rssi": "",
     "unit": "feet",
     "test_time": 10,
     "start_time": None,
@@ -49,7 +51,7 @@ def calc_distance(x1, y1, x2, y2, real_location, predicted_location):
     return round(distance, 1)
 
 
-def client_update(client, record_timestamp, x, y, location, location_id, confidence_factor, map_id, mac, username):
+def client_update(client, record_timestamp, x, y, location, location_id, confidence_factor, map_id, mac, username, ssid, rssi):
     distance_error = calc_distance(client['x'], client['y'], x, y, client['location_id'], location_id)
     time_delta = abs(round((record_timestamp - client['start_time']).total_seconds(), 1))
     print(f"Distance error {distance_error} time secs {time_delta} {client['start_time']} {record_timestamp}")
@@ -58,6 +60,8 @@ def client_update(client, record_timestamp, x, y, location, location_id, confide
                         'username': username,
                         'x': x,
                         'y': y,
+                        'ssid': ssid,
+                        'rssi': rssi,
                         'error': distance_error,
                         'seconds': time_delta,
                         'location': location,
@@ -108,16 +112,50 @@ def get_location(event):
     return location
 
 
+def check_interesting_event(event, client):
+    interesting_event = False
+    print(f"check_interesting_event(): client {client}")
+    print(f"check_interesting_event(): {event['eventType']} {event['deviceLocationUpdate']['device']['macAddress']} {event['deviceLocationUpdate']['location']['locationId']} {client['location']}")
+    if event['eventType'] == "DEVICE_LOCATION_UPDATE":
+        # Only interested in device location updates
+        if event['deviceLocationUpdate']['device']['macAddress'] == client['mac']:
+            # Mac matches
+            if event['deviceLocationUpdate']['location']['locationId'] == client['location_id']:
+                # Mac and provided client location_id matches, interesting.
+                interesting_event = True
+            elif not client['location_id']:
+                # Mac matches but client location_id is empty
+                if get_location(event) == client['location']:
+                    # Mac matches and location matches
+                    interesting_event = True
+                elif client['location']:
+                    # Mac matches and client location id or location empty (not provided), interesting
+                    interesting_event = True
+        elif not client['mac']:
+            # Mac is empty (not provided). See if location_id or location matches (search mode).
+            if event['deviceLocationUpdate']['location']['locationId'] == client['location_id']:
+                # Client location_id provided and matches, interesting
+                interesting_event = True
+            elif not client['location_id']:
+                # Client location_id not provided, check location name
+                    if client['location'] in get_location(event):
+                        # Client location provided matches
+                        interesting_event = True
+                    elif not client['location']:
+                        # Client location not provided, everything is interesting
+                        interesting_event = True
+
+    print(f"check_interesting_event(): interesting_event? {interesting_event}")
+    return interesting_event
+
+
 def get_data_from_json(json_event, client):
     number_location_updates = 0
     result = []
     username = ""
     print(f"Device location update {json_event}")
     try:
-        print(json_event['deviceLocationUpdate']['location'])
-        if json_event['eventType'] == "DEVICE_LOCATION_UPDATE" \
-                and (client['search_mode'] or
-                     json_event['deviceLocationUpdate']['device']['macAddress'] == client['mac']):
+        if check_interesting_event(json_event, client):
             number_location_updates += 1
             time_stamp_datetime = dt.fromtimestamp(json_event['recordTimestamp'] / 1000)
             mac = json_event['deviceLocationUpdate']['device']['macAddress']
@@ -128,13 +166,14 @@ def get_data_from_json(json_event, client):
             location_id = json_event['deviceLocationUpdate']['location']['locationId']
             confidence_factor = feet_to_mts(json_event['deviceLocationUpdate']['confidenceFactor'])
             map_id = json_event['deviceLocationUpdate']['mapId']
+            ssid = json_event['deviceLocationUpdate']['ssid']
+            rssi = json_event['deviceLocationUpdate']['maxDetectedRssi']
             result = client_update(client, time_stamp_datetime, x, y, location, location_id, confidence_factor,
-                                   map_id, mac, username)
-            print(f"Device location update {json_event['eventType']} {username}")
+                                   map_id, mac, username, ssid, rssi)
         else:
-            print(f"Not a device location update {json_event['eventType']}")
+            print(f"get_data_from_json(): Not a device location update {json_event['eventType']}")
     except KeyError as e:
-        print(f"Unable to extract all data from json. Error: {e}")
+        print(f"get_data_from_json(): Unable to extract all data from json. Error: {e}")
 
     return result
 
@@ -171,6 +210,8 @@ def post_process_results(location_updates):
             username = update['username']
             x = update['x']
             y = update['y']
+            ssid = update['ssid']
+            rssi = update['rssi']
             error = update['error']
             location = update['location']
             location_id = update['location_id']
@@ -203,6 +244,8 @@ def post_process_results(location_updates):
                               'username': username,
                               'x': x,
                               'y': y,
+                              'ssid': ssid,
+                              'rssi': rssi,
                               'error': error,
                               'seconds': time_delta,
                               'location': location,
@@ -227,26 +270,6 @@ def post_process_results(location_updates):
 def get_percentage(total, n):
     percent = (total/n)*100
     return round(percent, 1)
-
-
-def get_samples(key):
-    number_events = 0
-    number_location_updates = 0
-    headers = {'X-API-Key': key}
-    # Connect to API
-    stream_api = requests.get('https://partners.dnaspaces.io/api/partners/v1/firehose/events',
-                              stream=True, headers=headers)
-    print(f"Got status code {stream_api.status_code} from partners.dnaspaces.io.")
-    # Remember time we started.
-    start_time = dt.now()
-    if stream_api.status_code == 200:
-        # Read in an update from Firehose API
-        for line in stream_api.iter_lines():
-            number_events += 1
-
-    return render_template('index.html', api_key=api_key, client=client, stats=stats,
-                           img_data=map_img, img_width=map_width, img_height=map_height, dim_width=dim_width,
-                           dim_length=dim_length)
 
 
 def get_updates(client, key):
@@ -277,8 +300,8 @@ def get_updates(client, key):
             process_time_secs = round((dt.now() - start_time).total_seconds(), 0)
             print(f"Progress - {round((process_time_secs/client['test_time'])*100,1)}% complete. "
                   f"Total events {number_events} interesting events {number_location_updates}")
-            if process_time_secs > client['test_time']:
-                print('Complete. Time taken', process_time_secs)
+            if process_time_secs > client['test_time'] or number_location_updates > MAX_EVENTS:
+                print(f"Complete. Time taken {process_time_secs}sec Number of events {number_location_updates}")
                 break
     updates_processed, stats = post_process_results(updates)
 
@@ -296,6 +319,17 @@ def get_location_id(list_updates):
             break
 
     return location_id
+
+
+def get_number_locations(list_updates):
+    number_location_id = 0
+    prev_location_id = ""
+    for update in list_updates:
+        if prev_location_id != update['location_id']:
+            prev_location_id = update['location_id']
+            number_location_id += 1
+    print(f"get_number_locations(): Found {number_location_id} in the updates.")
+    return number_location_id
 
 
 @app.route('/', methods=['POST'])
@@ -327,18 +361,18 @@ def track_client():
         client['x'] = float(request.form['x_coordinates'])
     except KeyError:
         print(f"Error: No x value.")
-        processing_error = True
+        client['x'] = 0.0
     except ValueError:
         print("Error: Unable to convert x to float.")
-        processing_error = True
+        client['x'] = 0.0
     try:
         client['y'] = float(request.form['y_coordinates'])
     except KeyError:
         print(f"Error: No y value.")
-        processing_error = True
+        client['y'] = 0.0
     except ValueError:
         print("Error: Unable to convert y to float.")
-        processing_error = True
+        client['y'] = 0.0
     try:
         if request.form['measurement'] == "feet":
             client['x'] = feet_to_mts(client['x'])
@@ -351,9 +385,11 @@ def track_client():
         print("Error: measurement input missing. Assuming metres.")
     try:
         client['location_id'] = request.form['location_id']
-    except KeyError:
-        print("Error: Unable to get location_id.")
+        client['location'] = request.form['location']
+    except KeyError as e:
+        print(f"Error: Unable to get location or location_id {e}")
         client['location_id'] = ""
+        client['location'] = ""
     try:
         client['test_time'] = int(request.form['test_time'])
     except KeyError:
@@ -367,20 +403,33 @@ def track_client():
     if not processing_error:
         client['location_updates'], client['number_updates'], client['total_events'], stats = get_updates(client, api_key)
         client['tracking'] = True
-        print(f"Finished tracking {client['mac']}, got following events {client['number_updates'] }")
-        if client['location_id'] == "":
-            location_id = get_location_id(client['location_updates'])
-            client['location_id'] = location_id
-        map_img, map_width, map_height, dim_width, dim_length = get_map(client['location_id'], api_key)
+        print(f"Finished tracking {client['mac']}, got following number of events {client['number_updates'] }")
+        if get_number_locations(client['location_updates']) == 1:
+            # We only found a single location so we can retrieve the map to display.
+            display_map = True
+            if client['location_id'] == "":
+                # Location_id wasn't provided in the user input so we need to find it.
+                location_id = get_location_id(client['location_updates'])
+            else:
+                location_id = client['location_id']
+            map_img, map_width, map_height, dim_width, dim_length = get_map(location_id, api_key)
+        else:
+            # We got more than one location, so don't display the map.
+            display_map = False
+            map_width = 0
+            map_height = 0
+            dim_width = 0
+            dim_length = 0
+            map_img = ""
 
     if client['unit'] == "feet":
         print("Converting real location back to feet.")
         client['x'] = round(client['x'] * 3.3, 1)
         client['y'] = round(client['y'] * 3.3, 1)
-
+    print(f"Display map {display_map}")
     return render_template('index.html', api_key=api_key, client=client, stats=stats,
                            img_data=map_img, img_width=map_width, img_height=map_height, dim_width=dim_width,
-                           dim_length=dim_length)
+                           dim_length=dim_length, display_map=display_map)
 
 
 @app.route('/', methods=['GET'])
