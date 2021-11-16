@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, send_file, make_response
+from flask import Flask, request, render_template
 import json
 from math import sqrt
 from datetime import datetime as dt
@@ -6,7 +6,6 @@ from activate import process_activation
 import requests
 import statistics
 import re
-import pprint
 from PIL import Image
 import base64
 import io
@@ -42,7 +41,7 @@ client_template = {
 
 def calc_distance(x1, y1, x2, y2, real_location, predicted_location):
     if real_location == "":
-        print(f"Location id not provided. Using first location_id {predicted_location}")
+        print(f"calc_distance(): Location id not provided. Using first location_id {predicted_location}")
         real_location = predicted_location
     if real_location == predicted_location:
         distance = sqrt((x1 - x2)**2 + (y1 - y2)**2)
@@ -54,7 +53,8 @@ def calc_distance(x1, y1, x2, y2, real_location, predicted_location):
 def client_update(client, record_timestamp, x, y, location, location_id, confidence_factor, map_id, mac, username, ssid, rssi):
     distance_error = calc_distance(client['x'], client['y'], x, y, client['location_id'], location_id)
     time_delta = abs(round((record_timestamp - client['start_time']).total_seconds(), 1))
-    print(f"Distance error {distance_error} time secs {time_delta} {client['start_time']} {record_timestamp}")
+    print(f"client_update(): Distance error {distance_error} "
+          f"time secs {time_delta} {client['start_time']} {record_timestamp}")
     location_updates = {'timestamp': record_timestamp,
                         'mac': mac,
                         'username': username,
@@ -69,7 +69,6 @@ def client_update(client, record_timestamp, x, y, location, location_id, confide
                         'confidence_factor': confidence_factor,
                         'map_id': map_id
                         }
-    print(location_updates)
 
     return location_updates
 
@@ -78,7 +77,7 @@ def feet_to_mts(distance_feet):
     try:
         return round(distance_feet * 0.3048, 1)
     except TypeError:
-        print("Error not a number")
+        print("feet_to_mts(): Error not a number. Returning 0.0")
         return 0.0
 
 
@@ -90,10 +89,10 @@ def activate_app():
         # Check to see if we got activation token
         if request.form['token']:
             token = request.form['token']
-            print(f"Got activation token:{token}")
+            print(f"activate_app(): Got activation token:{token}")
             api_key = process_activation(token)
         else:
-            print("Form didn't provide api_key or token.")
+            print("activate_app(): Form didn't provide api_key or token.")
         return render_template('index.html', api_key=api_key, client=client_template,
                                img_data="", img_width=0.0, img_height=0.0, dim_width=0.0,
                                dim_length=0.0
@@ -153,7 +152,6 @@ def get_data_from_json(json_event, client):
     number_location_updates = 0
     result = []
     username = ""
-    print(f"Device location update {json_event}")
     try:
         if check_interesting_event(json_event, client):
             number_location_updates += 1
@@ -201,7 +199,7 @@ def post_process_results(location_updates):
     accuracy_list = []
     location_changed = 0
     if len(location_updates) <= 0:
-        print("INFO: Nothing to process.")
+        print("post_process_results(): Nothing to process.")
     else:
         for update in location_updates:
             number_updates += 1
@@ -224,7 +222,7 @@ def post_process_results(location_updates):
             prev_timestamp = timestamp
             timestamp_formatted = timestamp.astimezone().isoformat()
             if error < 0.0:
-                print(f"INFO: Change floor event. Ignoring error {error}")
+                print(f"post_process_results(): Change floor event. Ignoring error {error}")
                 location_changed += 1
             else:
                 total_error += error
@@ -262,7 +260,7 @@ def post_process_results(location_updates):
             stats['average_latency'] = round(total_latency/number_updates, 1)
             stats['median_latency'] = round(statistics.median(latency_list), 1)
         stats['floor_change'] = location_changed
-        print(f"Stats: {stats}")
+        print(f"post_process_results(): {stats}")
 
     return processed, stats
 
@@ -281,7 +279,7 @@ def get_updates(client, key):
     # Connect to API
     stream_api = requests.get('https://partners.dnaspaces.io/api/partners/v1/firehose/events',
                               stream=True, headers=headers)
-    print(f"Got status code {stream_api.status_code} from partners.dnaspaces.io.")
+    print(f"post_process_results(): Got status code {stream_api.status_code} from partners.dnaspaces.io.")
     # Remember time we started.
     start_time = dt.now()
     if stream_api.status_code == 200:
@@ -290,7 +288,6 @@ def get_updates(client, key):
             number_events += 1
             # Extract the data from the event
             data = json.loads(line)
-#            pprint.pprint(data)
             result = get_data_from_json(data, client)
             # Check if any interesting events are returned.
             if len(result) > 0:
@@ -298,10 +295,12 @@ def get_updates(client, key):
                 number_location_updates += 1
             # Check how long we have been reading the events for and stop if its longer than the test time
             process_time_secs = round((dt.now() - start_time).total_seconds(), 0)
-            print(f"Progress - {round((process_time_secs/client['test_time'])*100,1)}% complete. "
-                  f"Total events {number_events} interesting events {number_location_updates}")
+            print(f"post_process_results(): Progress {round((process_time_secs/client['test_time'])*100,1)}% complete."
+                  f"post_process_results(): Total events {number_events} "
+                  f"Interesting events {number_location_updates}")
             if process_time_secs > client['test_time'] or number_location_updates > MAX_EVENTS:
-                print(f"Complete. Time taken {process_time_secs}sec Number of events {number_location_updates}")
+                print(f"post_process_results(): Complete, time taken {process_time_secs}sec "
+                      f"Number of events {number_location_updates}")
                 break
     updates_processed, stats = post_process_results(updates)
 
@@ -311,10 +310,10 @@ def get_updates(client, key):
 def get_location_id(list_updates):
     map_id = ""
     location_id = ""
-    print(f"List of updates {list_updates}")
+    print(f"get_location_id(): List of updates {list_updates}")
     for update in list_updates:
         if "location_id" in update:
-            print(f"Location id {update['location_id']}")
+            print(f"get_location_id(): Location id {update['location_id']}")
             location_id = update['location_id']
             break
 
@@ -342,68 +341,68 @@ def track_client():
     try:
         api_key = request.form['api_key']
     except KeyError:
-        print("Error: missing api_key")
+        print("track_client(): Error: missing api_key")
         api_key = "Unknown"
-    print(f"Track client with {api_key}")
+    print(f"track_client(): Track client with {api_key}")
     try:
         client['mac'] = request.form['mac_address']
         if len(client['mac']) > 0 and re.match("[0-9a-f]{2}([-:]?)[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", client['mac'].lower()):
-            print("Got valid mac address.")
+            print("track_client(): Got valid mac address.")
             client['search_mode'] = False
         else:
-            print(f"No MAC address provided. Search mode activated.")
+            print(f"track_client(): No MAC address provided. Search mode activated.")
             client['mac'] = ""
             client['search_mode'] = True
     except KeyError:
-        print(f"Error: No mac address.")
+        print(f"track_client(): Error: No mac address.")
         processing_error = True
     try:
         client['x'] = float(request.form['x_coordinates'])
     except KeyError:
-        print(f"Error: No x value.")
+        print(f"track_client(): Error: No x value.")
         client['x'] = 0.0
     except ValueError:
-        print("Error: Unable to convert x to float.")
+        print("track_client(): Error: Unable to convert x to float.")
         client['x'] = 0.0
     try:
         client['y'] = float(request.form['y_coordinates'])
     except KeyError:
-        print(f"Error: No y value.")
+        print(f"track_client(): Error: No y value.")
         client['y'] = 0.0
     except ValueError:
-        print("Error: Unable to convert y to float.")
+        print("track_client(): Error: Unable to convert y to float.")
         client['y'] = 0.0
     try:
         if request.form['measurement'] == "feet":
             client['x'] = feet_to_mts(client['x'])
             client['y'] = feet_to_mts(client['y'])
             client['unit'] = "feet"
-            print(f"Converted real x,y to metres {client['x']} {client['y']}")
+            print(f"track_client(): Converted real x,y to metres {client['x']} {client['y']}")
         else:
             client['unit'] = "metre"
     except ValueError as e:
-        print("Error: measurement input missing. Assuming metres.")
+        print("track_client(): Error: measurement input missing. Assuming metres.")
     try:
         client['location_id'] = request.form['location_id']
         client['location'] = request.form['location']
     except KeyError as e:
-        print(f"Error: Unable to get location or location_id {e}")
+        print(f"track_client(): Error: Unable to get location or location_id {e}")
         client['location_id'] = ""
         client['location'] = ""
     try:
         client['test_time'] = int(request.form['test_time'])
     except KeyError:
-        print("Error: Unable to get test_time.")
+        print("track_client(): Error: Unable to get test_time.")
         client['test_time'] = 10
     except ValueError:
-        print("Error: Unable to test_time to int.")
+        print("track_client(): Error: Unable to test_time to int.")
         processing_error = True
     client['start_time'] = dt.now()
     client['number_updates'] = 0
     if not processing_error:
         client['location_updates'], client['number_updates'], client['total_events'], stats = get_updates(client, api_key)
         client['tracking'] = True
-        print(f"Finished tracking {client['mac']}, got following number of events {client['number_updates'] }")
+        print(f"track_client(): Finished tracking {client['mac']}, got following number of events {client['number_updates'] }")
         if get_number_locations(client['location_updates']) == 1:
             # We only found a single location so we can retrieve the map to display.
             display_map = True
@@ -423,10 +422,10 @@ def track_client():
             map_img = ""
 
     if client['unit'] == "feet":
-        print("Converting real location back to feet.")
+        print("track_client(): Converting real location back to feet.")
         client['x'] = round(client['x'] * 3.3, 1)
         client['y'] = round(client['y'] * 3.3, 1)
-    print(f"Display map {display_map}")
+    print(f"track_client(): Display map {display_map}")
     return render_template('index.html', api_key=api_key, client=client, stats=stats,
                            img_data=map_img, img_width=map_width, img_height=map_height, dim_width=dim_width,
                            dim_length=dim_length, display_map=display_map)
@@ -439,22 +438,6 @@ def get_home_page():
                            img_data="", img_width=0.0, img_height=0.0, dim_width=0.0,
                            dim_length=0.0
                            )
-
-
-@app.route('/download', methods=['POST'])
-def down_load_file():
-    csv = "seconds, error\n"
-    print(f"Returned {request.form['client']}")
-    client = {'seconds': 1, 'error': 2}
-    for row in client['location_updates']:
-        print(row)
-        csv += f"{row['seconds']},{row['error']}\n"
-    response = make_response(csv)
-    cd = 'attachment; filename=location.csv'
-    response.headers['Content-Disposition'] = cd
-    response.mimetype = 'text/csv'
-
-    return response
 
 
 def get_map(location_id, api_key):
@@ -470,37 +453,37 @@ def get_map(location_id, api_key):
     try:
         request_location_info = requests.get(f"https://partners.dnaspaces.io/api/partners/v1/locations/{location_id}",
                                              headers=headers)
-        print(f"Got status code {request_location_info.status_code} from partners.dnaspaces.io.")
+        print(f"get_map(): Got status code {request_location_info.status_code} from partners.dnaspaces.io.")
     except requests.exceptions.RequestException as e:
-        print(f"Error: getting map information to partners.dnaspaces.io {e}")
+        print(f"get_map(): Error: getting map information to partners.dnaspaces.io {e}")
         error = True
     if not error and request_location_info.status_code == 200:
-        print("Successfully got map info.")
+        print("get_map(): Successfully got map info.")
         error = False
         location_info = request_location_info.json()
         try:
             map_info = location_info['locationDetails']['mapDetails']
         except ValueError as e:
-            print(f"Error: Tried to extract mapDetails from location but got an error {e}")
-        print(f"Map info mapId {map_info['mapId']} width {map_info['imageWidth']} height {map_info['imageHeight']}")
+            print(f"get_map(): Error: Tried to extract mapDetails from location but got an error {e}")
+        print(f"get_map(): Map info mapId {map_info['mapId']} width {map_info['imageWidth']} height {map_info['imageHeight']}")
         try:
             map_id = map_info['mapId']
             img_width = float(map_info['imageWidth']) * IMAGE_SCALE
             img_height = float(map_info['imageHeight']) * IMAGE_SCALE
             dimension_width = feet_to_mts(float(map_info['dimension']['width']))
             dimension_length = feet_to_mts(float(map_info['dimension']['length']))
-            print(f"Image width {img_width} image height {img_height} floor width (mtrs) {dimension_width} floor length (mtrs) {dimension_length}")
+            print(f"get_map(): Image width {img_width} image height {img_height} floor width (mtrs) {dimension_width} floor length (mtrs) {dimension_length}")
         except ValueError:
-            print("Image width and height not returned.")
+            print("get_map(): Image width and height not returned.")
             error = True
         try:
             r = requests.get(f"https://partners.dnaspaces.io/api/partners/v1/maps/{map_id}/image", headers=headers)
-            print(f"Got status code {r.status_code} from partners.dnaspaces.io.")
+            print(f"get_map(): Got status code {r.status_code} from partners.dnaspaces.io.")
         except requests.exceptions.RequestException as e:
-            print(f"Error: getting map from partners.dnaspaces.io {e}")
+            print(f"get_map(): Error: getting map from partners.dnaspaces.io {e}")
             error = True
         if not error and r.status_code == 200:
-            print("Successfully got map image. Converting image.")
+            print("get_map(): Successfully got map image. Converting image.")
             im = Image.open(BytesIO(r.content))
             data = io.BytesIO()
             im.save(data, "JPEG")

@@ -192,7 +192,7 @@
                     {% if display_map %}
                        Status
                     {% else %}
-                        Status: Only displayed for a single location.
+                        Status: Map will only be displayed for a single location.
                     {% endif %}
                 </small></p>
                 <div id="floor_map">
@@ -401,8 +401,8 @@
             const img_width = {{ img_width| safe }};
             const img_height = {{ img_height | safe }};
             const margin = {top: 30, right: 10, bottom: 10, left: 40}
-            const width = img_width - margin.left - margin.right;
-            const height = img_height - margin.top - margin.bottom;
+            const width = img_width + margin.left + margin.right;
+            const height = img_height + margin.top + margin.bottom;
 
             // set the ranges
             let xScale = d3.scaleLinear()
@@ -420,26 +420,23 @@
 
                 let svg = d3.select("#floor_map")
                     .append("svg")
-                    .attr("width", img_width + margin.left + margin.right)
-                    .attr("height", img_height + margin.top + margin.bottom)
+                    .attr("width", width)
+                    .attr("height", height)
                     .append("g")
-                    .attr("transform",
-                    "translate(" + margin.left + "," + margin.top + ")");
+
 
                 svg.append('image')
-                    .attr("transform",
-                    "translate(" + margin.left + "," + margin.top + ")")
-                    .attr("y","0")
-                    .attr("x","0")
+                    .attr("y", margin.top)
+                    .attr("x", margin.left)
                     .attr('xlink:href', map)
-                    .attr('width', width)
-                    .attr('height', height)
+                    .attr('width', img_width)
+                    .attr('height', img_height)
                     .attr("class", "bg-image")
-                    .style("opacity", 0.5);
+                    .style("opacity", 0.5)
+                    .style("border", "1px solid black");
 //                    .on('click', dragended);
 
                 svg.append("g")
-                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
                     .attr("id", "devices")
                     .selectAll("circle")
                     .data(data)
@@ -458,7 +455,7 @@
                 draw_real(svg, margin, width, height, xScale(real_x), yScale(real_y));
 
                 svg.append("g")
-                  .attr("transform", `translate(0,${height - margin.bottom})`)      // This controls the vertical position of the Axis
+                  .attr("transform", `translate(0,${margin.top})`)      // This controls the vertical position of the Axis
                   .call(d3.axisTop(xScale));
 
                 svg.append("g")
@@ -468,25 +465,24 @@
                 // Add X axis label:
                 svg.append("text")
                     .attr("text-anchor", "end")
-                    .attr("x", width)
-                    .attr("y", height + margin.top + 20)
-                    .text("X (mtrs)");
+                    .attr("x", width/2)
+                    .attr("y", margin.top/2)
+                    .text("Metre (x)");
 
                 // Y axis label:
-                svg.append("text")
-                    .attr("text-anchor", "end")
-                    .attr("transform", "rotate(-90)")
-                    .attr("y", -margin.left+20)
-                    .attr("x", -margin.top)
-                    .text("Y (mtrs)")
-
+                svg.append('g')
+                    .attr('transform', 'translate(' + margin.left/2 + ', ' + height/2 + ')')
+                    .append('text')
+                    .attr('text-anchor', 'middle')
+                    .attr('transform', 'rotate(-90)')
+                    .text('Metre (y)')
+                    ;
             }
 
             function draw_real(svg, margin, width, height, x, y){
                 console.log("draw_real(): Plot real x, y", x, y);
                 data = [{x: x, y: y}];
                 svg.append("g")
-                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
                     .attr("class", "circles")
                     .attr("id", "real_location")
                     .selectAll("circle")
