@@ -11,7 +11,7 @@ import base64
 import io
 from io import BytesIO
 
-IMAGE_SCALE = 0.5
+IMAGE_SCALE = 1.0
 MAX_EVENTS = 100
 app = Flask(__name__)
 
@@ -486,6 +486,8 @@ def get_map(location_id, api_key):
             print("get_map(): Successfully got map image. Converting image.")
             im = Image.open(BytesIO(r.content))
             data = io.BytesIO()
+            if im.mode in ("RGBA", "P"):
+                im = im.convert("RGB")
             im.save(data, "JPEG")
             encoded_img_data = base64.b64encode(data.getvalue())
             decode_img_data = encoded_img_data.decode('utf-8')
