@@ -276,7 +276,7 @@ def get_updates(client, key):
     number_events = 0
     number_location_updates = 0
     headers = {'X-API-Key': key}
-    # Connect to API
+    # Connect to API    
     stream_api = requests.get('https://partners.dnaspaces.io/api/partners/v1/firehose/events',
                               stream=True, headers=headers)
     print(f"post_process_results(): Got status code {stream_api.status_code} from partners.dnaspaces.io.")
