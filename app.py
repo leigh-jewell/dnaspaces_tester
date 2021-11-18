@@ -50,24 +50,27 @@ def calc_distance(x1, y1, x2, y2, real_location, predicted_location):
     return round(distance, 1)
 
 
-def client_update(client, record_timestamp, x, y, location, location_id, confidence_factor, map_id, mac, username, ssid, rssi):
-    distance_error = calc_distance(client['x'], client['y'], x, y, client['location_id'], location_id)
-    time_delta = abs(round((record_timestamp - client['start_time']).total_seconds(), 1))
+def client_update(client, data):
+    distance_error = calc_distance(client['x'], client['y'], data['x'], data['y'], client['location_id'],
+                                   data['location_id'])
+    time_delta = abs(round((data['record_timestamp'] - client['start_time']).total_seconds(), 1))
     print(f"client_update(): Distance error {distance_error} "
-          f"time secs {time_delta} {client['start_time']} {record_timestamp}")
-    location_updates = {'timestamp': record_timestamp,
-                        'mac': mac,
-                        'username': username,
-                        'x': x,
-                        'y': y,
-                        'ssid': ssid,
-                        'rssi': rssi,
+          f"time secs {time_delta} {client['start_time']} {data['record_timestamp']}")
+    location_updates = {'timestamp': data['record_timestamp'],
+                        'mac': data['mac'],
+                        'username': data['username'],
+                        'x': data['x'],
+                        'y': data['y'],
+                        'ssid': data['ssid'],
+                        'rssi': data['rssi'],
                         'error': distance_error,
                         'seconds': time_delta,
-                        'location': location,
-                        'location_id': location_id,
-                        'confidence_factor': confidence_factor,
-                        'map_id': map_id
+                        'location': data['location'],
+                        'location_id': data['location_id'],
+                        'confidence_factor': data['confidence_factor'],
+                        'map_id': data['map_id'],
+                        'unc': data['unc'],
+                        'last_seen': data['last_seen']
                         }
 
     return location_updates
@@ -127,7 +130,7 @@ def check_interesting_event(event, client):
                 if get_location(event) == client['location']:
                     # Mac matches and location matches
                     interesting_event = True
-                elif client['location']:
+                elif not client['location']:
                     # Mac matches and client location id or location empty (not provided), interesting
                     interesting_event = True
         elif not client['mac']:
@@ -152,22 +155,24 @@ def get_data_from_json(json_event, client):
     number_location_updates = 0
     result = []
     username = ""
+    data = {}
     try:
         if check_interesting_event(json_event, client):
             number_location_updates += 1
-            time_stamp_datetime = dt.fromtimestamp(json_event['recordTimestamp'] / 1000)
-            mac = json_event['deviceLocationUpdate']['device']['macAddress']
-            username = json_event['deviceLocationUpdate']['rawUserId']
-            x = feet_to_mts(json_event['deviceLocationUpdate']['xPos'])
-            y = feet_to_mts(json_event['deviceLocationUpdate']['yPos'])
-            location = get_location(json_event)
-            location_id = json_event['deviceLocationUpdate']['location']['locationId']
-            confidence_factor = feet_to_mts(json_event['deviceLocationUpdate']['confidenceFactor'])
-            map_id = json_event['deviceLocationUpdate']['mapId']
-            ssid = json_event['deviceLocationUpdate']['ssid']
-            rssi = json_event['deviceLocationUpdate']['maxDetectedRssi']
-            result = client_update(client, time_stamp_datetime, x, y, location, location_id, confidence_factor,
-                                   map_id, mac, username, ssid, rssi)
+            data['record_timestamp'] = dt.fromtimestamp(json_event['recordTimestamp'] / 1000)
+            data['mac'] = json_event['deviceLocationUpdate']['device']['macAddress']
+            data['username'] = json_event['deviceLocationUpdate']['rawUserId']
+            data['x'] = feet_to_mts(json_event['deviceLocationUpdate']['xPos'])
+            data['y'] = feet_to_mts(json_event['deviceLocationUpdate']['yPos'])
+            data['location'] = get_location(json_event)
+            data['location_id'] = json_event['deviceLocationUpdate']['location']['locationId']
+            data['confidence_factor'] = feet_to_mts(json_event['deviceLocationUpdate']['confidenceFactor'])
+            data['map_id'] = json_event['deviceLocationUpdate']['mapId']
+            data['ssid'] = json_event['deviceLocationUpdate']['ssid']
+            data['rssi'] = json_event['deviceLocationUpdate']['maxDetectedRssi']
+            data['unc'] = json_event['deviceLocationUpdate']['unc']
+            data['last_seen'] = dt.fromtimestamp(json_event['deviceLocationUpdate']['lastSeen'] / 1000)
+            result = client_update(client, data)
         else:
             print(f"get_data_from_json(): Not a device location update {json_event['eventType']}")
     except KeyError as e:
@@ -215,6 +220,8 @@ def post_process_results(location_updates):
             location_id = update['location_id']
             confidence_factor = update['confidence_factor']
             map_id = update['map_id']
+            unc = update['unc']
+            last_seen = update['last_seen']
             if first_update:
                 prev_timestamp = timestamp
                 first_update = False
@@ -249,7 +256,9 @@ def post_process_results(location_updates):
                               'location': location,
                               'location_id': location_id,
                               'confidence_factor': confidence_factor,
-                              'map_id': map_id})
+                              'map_id': map_id,
+                              'unc': unc,
+                              'last_seen': last_seen})
         if total_error > 0 and number_updates > 0:
             stats['average_accuracy'] = round(total_error/number_updates, 1)
             stats['median_accuracy'] = round(statistics.median(accuracy_list), 1)

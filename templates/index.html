@@ -225,8 +225,10 @@
                         <th scope="col">Location</th>
                         <th scope="col">Location Id</th>
                         <th scope="col">Confidence Factor (mtrs)</th>
+                        <th scope="col">Uncertainty</th>
                         <th scope="col">SSID</th>
                         <th scope="col">Max RSSI</th>
+                        <th scope="col">Last Seen</th>
                         <th scope="col">Seconds Elapsed Last Update</th>
                     </tr>
                 </thead>
@@ -242,8 +244,10 @@
                             <td>{{updates.location}}</td>
                             <td>{{updates.location_id}}</td>
                             <td>{{updates.confidence_factor}}</td>
+                            <td>{{updates.unc}}</td>
                             <td>{{updates.ssid}}</td>
                             <td>{{updates.rssi}}</td>
+                            <td>{{updates.last_seen}}</td>
                             <td>{{updates.seconds}}</td>
                         </tr>
                     {% endfor %}
@@ -436,6 +440,11 @@
                     .style("border", "1px solid black");
 //                    .on('click', dragended);
 
+                // Define the div for the tooltip
+                let div = d3.select("body").append("div")
+                    .attr("class", "tooltip")
+                    .style("opacity", 0);
+
                 svg.append("g")
                     .attr("id", "devices")
                     .selectAll("circle")
@@ -447,7 +456,20 @@
                     .attr("cy", function(d){ return yScale(d.y)})
                     .style("fill", "lime")
                     .style("opacity", 0.5)
-                    .style("stroke", "darkgreen");
+                    .style("stroke", "darkgreen")
+                    .on("mouseover", function(d) {
+                                        div.transition()
+                                        .duration(200)
+                                        .style("opacity", .9);
+                                        div	.html(d.mac + "<br/>"  + d.username)
+                                        .style("left", (d3.event.pageX) + "px")
+                                        .style("top", (d3.event.pageY - 28) + "px");
+                                        })
+                    .on("mouseout", function(d) {
+                                div.transition()
+                                .duration(500)
+                                .style("opacity", 0);
+                     });
 
                 let real_x = document.getElementById("real_x").value;
                 let real_y = document.getElementById("real_y").value;
