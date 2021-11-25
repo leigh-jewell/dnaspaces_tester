@@ -11,8 +11,9 @@ import base64
 import io
 from io import BytesIO
 
-IMAGE_SCALE = 1.0
-MAX_EVENTS = 100
+SVG_WIDTH = 1200
+SVG_HEIGHT = 400
+MAX_EVENTS = 500
 app = Flask(__name__)
 
 # Client template
@@ -69,7 +70,6 @@ def client_update(client, data):
                         'location_id': data['location_id'],
                         'confidence_factor': data['confidence_factor'],
                         'map_id': data['map_id'],
-                        'unc': data['unc'],
                         'last_seen': data['last_seen']
                         }
 
@@ -170,7 +170,6 @@ def get_data_from_json(json_event, client):
             data['map_id'] = json_event['deviceLocationUpdate']['mapId']
             data['ssid'] = json_event['deviceLocationUpdate']['ssid']
             data['rssi'] = json_event['deviceLocationUpdate']['maxDetectedRssi']
-            data['unc'] = json_event['deviceLocationUpdate']['unc']
             data['last_seen'] = dt.fromtimestamp(json_event['deviceLocationUpdate']['lastSeen'] / 1000)
             result = client_update(client, data)
         else:
@@ -220,7 +219,6 @@ def post_process_results(location_updates):
             location_id = update['location_id']
             confidence_factor = update['confidence_factor']
             map_id = update['map_id']
-            unc = update['unc']
             last_seen = update['last_seen']
             if first_update:
                 prev_timestamp = timestamp
@@ -257,7 +255,6 @@ def post_process_results(location_updates):
                               'location_id': location_id,
                               'confidence_factor': confidence_factor,
                               'map_id': map_id,
-                              'unc': unc,
                               'last_seen': last_seen})
         if total_error > 0 and number_updates > 0:
             stats['average_accuracy'] = round(total_error/number_updates, 1)
@@ -449,6 +446,17 @@ def get_home_page():
                            )
 
 
+def get_image_scale_ratio(img_width, img_height, view_width, view_height):
+    if img_width > img_height:
+        print(f"get_image_scale_ratio(): img_width {img_height} greater than img_height {img_height}")
+        ratio = round(view_width/img_width, 2)
+    else:
+        print(f"get_image_scale_ratio():  img_height {img_height} greater than img_width {img_height}")
+        ratio = round(view_height/img_height, 2)
+    print(f"get_image_scale_ratio(): image scale ratio {ratio}")
+    return ratio
+
+
 def get_map(location_id, api_key):
     error = False
     encoded_img_data = ""
@@ -477,11 +485,14 @@ def get_map(location_id, api_key):
         print(f"get_map(): Map info mapId {map_info['mapId']} width {map_info['imageWidth']} height {map_info['imageHeight']}")
         try:
             map_id = map_info['mapId']
-            img_width = float(map_info['imageWidth']) * IMAGE_SCALE
-            img_height = float(map_info['imageHeight']) * IMAGE_SCALE
+            img_width = float(map_info['imageWidth'])
+            img_height = float(map_info['imageHeight'])
+            img_scale_ratio = get_image_scale_ratio(img_width, img_height, SVG_WIDTH, SVG_HEIGHT)
+            img_width_scaled = img_width * img_scale_ratio
+            img_height_scaled = img_height * img_scale_ratio
             dimension_width = feet_to_mts(float(map_info['dimension']['width']))
             dimension_length = feet_to_mts(float(map_info['dimension']['length']))
-            print(f"get_map(): Image width {img_width} image height {img_height} floor width (mtrs) {dimension_width} floor length (mtrs) {dimension_length}")
+            print(f"get_map(): Image width {img_width_scaled} image height {img_height_scaled} floor width (mtrs) {dimension_width} floor length (mtrs) {dimension_length}")
         except ValueError:
             print("get_map(): Image width and height not returned.")
             error = True
@@ -501,7 +512,7 @@ def get_map(location_id, api_key):
             encoded_img_data = base64.b64encode(data.getvalue())
             decode_img_data = encoded_img_data.decode('utf-8')
 
-    return decode_img_data, img_width, img_height, dimension_width, dimension_length
+    return decode_img_data, img_width_scaled, img_height_scaled, dimension_width, dimension_length
 
 
 if __name__ == '__main__':
