@@ -470,7 +470,7 @@ def get_map(location_id, api_key):
     try:
         request_location_info = requests.get(f"https://partners.dnaspaces.io/api/partners/v1/locations/{location_id}",
                                              headers=headers)
-        print(f"get_map(): Got status code {request_location_info.status_code} from partners.dnaspaces.io.")
+        print(f"get_map(): Got status code: {request_location_info.status_code} from partners.dnaspaces.io.")
     except requests.exceptions.RequestException as e:
         print(f"get_map(): Error: getting map information to partners.dnaspaces.io {e}")
         error = True
