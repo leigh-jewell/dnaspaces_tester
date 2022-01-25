@@ -4,7 +4,7 @@ Cisco DNA Spaces accuracy and latency tester
 A small python script to test out  [Cisco DNA Spaces](https://dnaspaces.io). The script creates a web server
 using Flask and connects to DNA Spaces Firehose API to receive location updates. It can then calculate the error distance and latency
 as a device is moved to a specific location on the map.
-
+ 
 ## Getting Started
 * Have a look at the Cisco DNA Spaces API over at [DevNet](https://developer.cisco.com/docs/dna-spaces/#!dna-spaces-location-cloud-api).
 To get familar with the APIs available.
