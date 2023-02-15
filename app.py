@@ -1,7 +1,10 @@
+import datetime
+
 from flask import Flask, request, render_template
 import json
 from math import sqrt
-from datetime import datetime as dt
+from datetime import datetime
+from datetime import timedelta
 from activate import process_activation
 import requests
 import statistics
@@ -25,7 +28,8 @@ client_template = {
     "ssid": "",
     "rssi": "",
     "unit": "feet",
-    "test_time": 10,
+    "test_time": 60,
+    "hours_rewind": 1,
     "start_time": None,
     "number_updates": 0,
     "location_updates": [],
@@ -159,7 +163,7 @@ def get_data_from_json(json_event, client):
     try:
         if check_interesting_event(json_event, client):
             number_location_updates += 1
-            data['record_timestamp'] = dt.fromtimestamp(json_event['recordTimestamp'] / 1000)
+            data['record_timestamp'] = datetime.fromtimestamp(json_event['recordTimestamp'] / 1000)
             data['mac'] = json_event['deviceLocationUpdate']['device']['macAddress']
             data['username'] = json_event['deviceLocationUpdate']['rawUserId']
             data['x'] = feet_to_mts(json_event['deviceLocationUpdate']['xPos'])
@@ -170,7 +174,7 @@ def get_data_from_json(json_event, client):
             data['map_id'] = json_event['deviceLocationUpdate']['mapId']
             data['ssid'] = json_event['deviceLocationUpdate']['ssid']
             data['rssi'] = json_event['deviceLocationUpdate']['maxDetectedRssi']
-            data['last_seen'] = dt.fromtimestamp(json_event['deviceLocationUpdate']['lastSeen'] / 1000)
+            data['last_seen'] = datetime.fromtimestamp(json_event['deviceLocationUpdate']['lastSeen'] / 1000)
             result = client_update(client, data)
         else:
             print(f"get_data_from_json(): Not a device location update {json_event['eventType']}")
@@ -282,12 +286,17 @@ def get_updates(client, key):
     number_events = 0
     number_location_updates = 0
     headers = {'X-API-Key': key}
-    # Connect to API    
+    # Create the fromeTimestamp
+    time_now = datetime.now() - timedelta(hours=client['hours_rewind'])
+    timestamp_now = time_now.timestamp() * 1000
+    params = {'fromTimestamp': int(timestamp_now)}
+    print(f"get_updates() fromTimestamp {params}")
+    # Connect to API
     stream_api = requests.get('https://partners.dnaspaces.io/api/partners/v1/firehose/events',
-                              stream=True, headers=headers)
+                              stream=True, headers=headers, params=params)
     print(f"post_process_results(): Got status code {stream_api.status_code} from partners.dnaspaces.io.")
     # Remember time we started.
-    start_time = dt.now()
+    start_time = datetime.now()
     if stream_api.status_code == 200:
         # Read in an update from Firehose API
         for line in stream_api.iter_lines():
@@ -300,7 +309,7 @@ def get_updates(client, key):
                 updates.append(result)
                 number_location_updates += 1
             # Check how long we have been reading the events for and stop if its longer than the test time
-            process_time_secs = round((dt.now() - start_time).total_seconds(), 0)
+            process_time_secs = round((datetime.now() - start_time).total_seconds(), 0)
             print(f"post_process_results(): Progress {round((process_time_secs/client['test_time'])*100,1)}% complete."
                   f"post_process_results(): Total events {number_events} "
                   f"Interesting events {number_location_updates}")
@@ -403,7 +412,12 @@ def track_client():
     except ValueError:
         print("track_client(): Error: Unable to test_time to int.")
         processing_error = True
-    client['start_time'] = dt.now()
+    try:
+        client['hours_rewind'] = int(request.form['hours_rewind'])
+    except KeyError:
+        print("track_client(): Error: Unable to get hours_rewind.")
+        client['hours_rewind'] = 1
+    client['start_time'] = datetime.now()
     client['number_updates'] = 0
     if not processing_error:
         client['location_updates'], client['number_updates'], client['total_events'], stats = get_updates(client, api_key)
