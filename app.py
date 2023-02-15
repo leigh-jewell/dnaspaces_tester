@@ -1,7 +1,7 @@
 from flask import Flask, request, render_template
 import json
 from math import sqrt
-from datetime import datetime as dt
+from datetime import datetime, timedelta
 from activate import process_activation
 import requests
 import statistics
@@ -24,7 +24,8 @@ client_template = {
     "ssid": "",
     "rssi": "",
     "unit": "feet",
-    "test_time": 10,
+    "test_time": 60,
+    "hours_rewind": 1,
     "start_time": None,
     "number_updates": 0,
     "location_updates": [],
@@ -69,7 +70,6 @@ def client_update(client, data):
                         'location_id': data['location_id'],
                         'confidence_factor': data['confidence_factor'],
                         'map_id': data['map_id'],
-                        'unc': data['unc'],
                         'last_seen': data['last_seen']
                         }
 
@@ -104,6 +104,7 @@ def activate_app():
 
 def get_location(event):
     location = "UNKNOWN"
+    print("get_location()")
     try:
         location = ">".join(
             (event['deviceLocationUpdate']['location']['parent']['parent']['name'],
@@ -156,10 +157,11 @@ def get_data_from_json(json_event, client):
     result = []
     username = ""
     data = {}
+    print(f"Spaces s): {json_event}")
     try:
         if check_interesting_event(json_event, client):
             number_location_updates += 1
-            data['record_timestamp'] = dt.fromtimestamp(json_event['recordTimestamp'] / 1000)
+            data['record_timestamp'] = datetime.fromtimestamp(json_event['recordTimestamp'] / 1000)
             data['mac'] = json_event['deviceLocationUpdate']['device']['macAddress']
             data['username'] = json_event['deviceLocationUpdate']['rawUserId']
             data['x'] = feet_to_mts(json_event['deviceLocationUpdate']['xPos'])
@@ -170,8 +172,7 @@ def get_data_from_json(json_event, client):
             data['map_id'] = json_event['deviceLocationUpdate']['mapId']
             data['ssid'] = json_event['deviceLocationUpdate']['ssid']
             data['rssi'] = json_event['deviceLocationUpdate']['maxDetectedRssi']
-            data['unc'] = json_event['deviceLocationUpdate']['unc']
-            data['last_seen'] = dt.fromtimestamp(json_event['deviceLocationUpdate']['lastSeen'] / 1000)
+            data['last_seen'] = datetime.fromtimestamp(json_event['deviceLocationUpdate']['lastSeen'] / 1000)
             result = client_update(client, data)
         else:
             print(f"get_data_from_json(): Not a device location update {json_event['eventType']}")
@@ -220,7 +221,6 @@ def post_process_results(location_updates):
             location_id = update['location_id']
             confidence_factor = update['confidence_factor']
             map_id = update['map_id']
-            unc = update['unc']
             last_seen = update['last_seen']
             if first_update:
                 prev_timestamp = timestamp
@@ -257,7 +257,6 @@ def post_process_results(location_updates):
                               'location_id': location_id,
                               'confidence_factor': confidence_factor,
                               'map_id': map_id,
-                              'unc': unc,
                               'last_seen': last_seen})
         if total_error > 0 and number_updates > 0:
             stats['average_accuracy'] = round(total_error/number_updates, 1)
@@ -285,25 +284,31 @@ def get_updates(client, key):
     number_events = 0
     number_location_updates = 0
     headers = {'X-API-Key': key}
-    # Connect to API    
+    # Calculate the time with the rewind hours provided for firehose request
+    time_now = datetime.now() - timedelta(hours=client['hours_rewind'])
+    timestamp_now = time_now.timestamp() * 1000
+    params = {'fromTimestamp': int(timestamp_now)}
+    print(f"fromTimestamp: {params}")
+    # Connect to API
     stream_api = requests.get('https://partners.dnaspaces.io/api/partners/v1/firehose/events',
-                              stream=True, headers=headers)
+                              stream=True, headers=headers, params=params)
     print(f"post_process_results(): Got status code {stream_api.status_code} from partners.dnaspaces.io.")
     # Remember time we started.
-    start_time = dt.now()
+    start_time = datetime.now()
     if stream_api.status_code == 200:
         # Read in an update from Firehose API
         for line in stream_api.iter_lines():
             number_events += 1
             # Extract the data from the event
             data = json.loads(line)
-            result = get_data_from_json(data, client)
-            # Check if any interesting events are returned.
-            if len(result) > 0:
-                updates.append(result)
-                number_location_updates += 1
+            if data['eventType'] == "DEVICE_LOCATION_UPDATE":
+                result = get_data_from_json(data, client)
+                # Check if any interesting events are returned.
+                if len(result) > 0:
+                    updates.append(result)
+                    number_location_updates += 1
             # Check how long we have been reading the events for and stop if its longer than the test time
-            process_time_secs = round((dt.now() - start_time).total_seconds(), 0)
+            process_time_secs = round((datetime.now() - start_time).total_seconds(), 0)
             print(f"post_process_results(): Progress {round((process_time_secs/client['test_time'])*100,1)}% complete."
                   f"post_process_results(): Total events {number_events} "
                   f"Interesting events {number_location_updates}")
@@ -406,7 +411,12 @@ def track_client():
     except ValueError:
         print("track_client(): Error: Unable to test_time to int.")
         processing_error = True
-    client['start_time'] = dt.now()
+    try:
+        client['hours_rewind'] = int(request.form['hours_rewind'])
+    except KeyError:
+        print("track_client(): Error: Unable to get the hours_rewind. Setting to 1 hour")
+        client['hours'] = 1
+    client['start_time'] = datetime.now()
     client['number_updates'] = 0
     if not processing_error:
         client['location_updates'], client['number_updates'], client['total_events'], stats = get_updates(client, api_key)

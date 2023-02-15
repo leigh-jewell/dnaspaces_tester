@@ -107,6 +107,12 @@
                               </div>
                               <input class="form-control" value={{ client.test_time }}  type=number step="0" name=test_time>
                             </div>
+                            <div class="input-group mb-3">
+                              <div class="input-group-prepend">
+                                <span class="input-group-text">Data Rewind (hours)</span>
+                              </div>
+                              <input class="form-control" value={{ client.hours_rewind }}  type=number step="0" name=hours_rewind>
+                            </div>
                             <dd><input class="btn btn-primary" type=submit name="submit" value="Track">
                                 <button class="btn btn-secondary" type="button" onclick="clear_search_fields()">Clear</button>
                         </dl>
@@ -225,7 +231,6 @@
                         <th scope="col">Location</th>
                         <th scope="col">Location Id</th>
                         <th scope="col">Confidence Factor (mtrs)</th>
-                        <th scope="col">Uncertainty</th>
                         <th scope="col">SSID</th>
                         <th scope="col">Max RSSI</th>
                         <th scope="col">Last Seen</th>
@@ -244,7 +249,6 @@
                             <td>{{updates.location}}</td>
                             <td>{{updates.location_id}}</td>
                             <td>{{updates.confidence_factor}}</td>
-                            <td>{{updates.unc}}</td>
                             <td>{{updates.ssid}}</td>
                             <td>{{updates.rssi}}</td>
                             <td>{{updates.last_seen}}</td>
@@ -340,6 +344,61 @@
           }
         }
 
+
+        function exportData() {
+            /* Get the HTML data using Element by Id */
+            var table = document.getElementById("location_updates");
+
+            /* Declaring array variable */
+            var rows = [];
+
+            //iterate through rows of table
+            for (var i = 0, row; row = table.rows[i]; i++) {
+                //rows would be accessed using the "row" variable assigned in the for loop
+                //Get each cell value/column from the row
+                column1 = row.cells[0].innerText;
+                column2 = row.cells[1].innerText;
+                column3 = row.cells[2].innerText;
+                column4 = row.cells[3].innerText;
+                column5 = row.cells[4].innerText;
+                column6 = row.cells[5].innerText;
+                column7 = row.cells[6].innerText;
+                column8 = row.cells[7].innerText;
+                column9 = row.cells[8].innerText;
+                column10 = row.cells[9].innerText;
+
+                /* add a new records in the array */
+                rows.push(
+                    [
+                        column1,
+                        column2,
+                        column3,
+                        column4,
+                        column5,
+                        column6,
+                        column7,
+                        column8,
+                        column9,
+                        column10
+                    ]
+                );
+
+            }
+            csvContent = "data:text/csv;charset=utf-8,";
+            /* add the column delimiter as comma(,) and each row splitted by new line character (\n) */
+            rows.forEach(function (rowArray) {
+                row = rowArray.join(",");
+                csvContent += row + "\r\n";
+            });
+
+            /* create a hidden <a> DOM node and set its download attribute */
+            var encodedUri = encodeURI(csvContent);
+            var link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "DNASpaces_Accuracy_Report.csv");
+            document.body.appendChild(link);
+            link.click();
+        }
 
         function exportData() {
             /* Get the HTML data using Element by Id */
