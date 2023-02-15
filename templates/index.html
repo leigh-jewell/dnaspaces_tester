@@ -196,7 +196,7 @@
                 <h5 class="card-title">Map</h5>
                 <p class="card-text"><small id="map_status" class="text-muted">
                     {% if display_map %}
-                       Status
+                       Status:
                     {% else %}
                         Status: Map will only be displayed for a single location.
                     {% endif %}
@@ -463,7 +463,7 @@
             const dim_length = {{ dim_length | safe }};
             const img_width = {{ img_width| safe }};
             const img_height = {{ img_height | safe }};
-            const margin = {top: 30, right: 10, bottom: 10, left: 40}
+            const margin = {top: 30, right: 10, bottom: 10, left: 50}
             const width = img_width + margin.left + margin.right;
             const height = img_height + margin.top + margin.bottom;
 
@@ -493,8 +493,10 @@
                     .attr("x", margin.left)
                     .attr('xlink:href', map)
                     .attr('width', img_width)
-                    .attr('height', img_height)
-                    .attr("class", "bg-image")
+                    .attr('height', img_width)
+                    .attr("class", "img-fluid")
+//                    .attr('height', img_height)
+//                    .attr("class", "bg-image")
                     .style("opacity", 0.5)
                     .style("border", "1px solid black");
 //                    .on('click', dragended);
@@ -515,20 +517,8 @@
                     .attr("cy", function(d){ return yScale(d.y)})
                     .style("fill", "lime")
                     .style("opacity", 0.5)
-                    .style("stroke", "darkgreen")
-                    .on("mouseover", function(d) {
-                                        div.transition()
-                                        .duration(200)
-                                        .style("opacity", .9);
-                                        div	.html(d.mac + "<br/>"  + d.username)
-                                        .style("left", (d3.event.pageX) + "px")
-                                        .style("top", (d3.event.pageY - 28) + "px");
-                                        })
-                    .on("mouseout", function(d) {
-                                div.transition()
-                                .duration(500)
-                                .style("opacity", 0);
-                     });
+                    .style("stroke", "darkgreen");
+
 
                 let real_x = document.getElementById("real_x").value;
                 let real_y = document.getElementById("real_y").value;

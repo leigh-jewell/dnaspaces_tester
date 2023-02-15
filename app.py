@@ -1,7 +1,7 @@
 from flask import Flask, request, render_template
 import json
 from math import sqrt
-from datetime import datetime, timedelta
+from datetime import datetime as dt
 from activate import process_activation
 import requests
 import statistics
@@ -11,8 +11,9 @@ import base64
 import io
 from io import BytesIO
 
-IMAGE_SCALE = 1.0
-MAX_EVENTS = 100
+SVG_WIDTH = 1200
+SVG_HEIGHT = 400
+MAX_EVENTS = 500
 app = Flask(__name__)
 
 # Client template
@@ -24,8 +25,7 @@ client_template = {
     "ssid": "",
     "rssi": "",
     "unit": "feet",
-    "test_time": 60,
-    "hours_rewind": 1,
+    "test_time": 10,
     "start_time": None,
     "number_updates": 0,
     "location_updates": [],
@@ -104,7 +104,6 @@ def activate_app():
 
 def get_location(event):
     location = "UNKNOWN"
-    print("get_location()")
     try:
         location = ">".join(
             (event['deviceLocationUpdate']['location']['parent']['parent']['name'],
@@ -157,11 +156,10 @@ def get_data_from_json(json_event, client):
     result = []
     username = ""
     data = {}
-    print(f"Spaces s): {json_event}")
     try:
         if check_interesting_event(json_event, client):
             number_location_updates += 1
-            data['record_timestamp'] = datetime.fromtimestamp(json_event['recordTimestamp'] / 1000)
+            data['record_timestamp'] = dt.fromtimestamp(json_event['recordTimestamp'] / 1000)
             data['mac'] = json_event['deviceLocationUpdate']['device']['macAddress']
             data['username'] = json_event['deviceLocationUpdate']['rawUserId']
             data['x'] = feet_to_mts(json_event['deviceLocationUpdate']['xPos'])
@@ -172,7 +170,7 @@ def get_data_from_json(json_event, client):
             data['map_id'] = json_event['deviceLocationUpdate']['mapId']
             data['ssid'] = json_event['deviceLocationUpdate']['ssid']
             data['rssi'] = json_event['deviceLocationUpdate']['maxDetectedRssi']
-            data['last_seen'] = datetime.fromtimestamp(json_event['deviceLocationUpdate']['lastSeen'] / 1000)
+            data['last_seen'] = dt.fromtimestamp(json_event['deviceLocationUpdate']['lastSeen'] / 1000)
             result = client_update(client, data)
         else:
             print(f"get_data_from_json(): Not a device location update {json_event['eventType']}")
@@ -284,31 +282,25 @@ def get_updates(client, key):
     number_events = 0
     number_location_updates = 0
     headers = {'X-API-Key': key}
-    # Calculate the time with the rewind hours provided for firehose request
-    time_now = datetime.now() - timedelta(hours=client['hours_rewind'])
-    timestamp_now = time_now.timestamp() * 1000
-    params = {'fromTimestamp': int(timestamp_now)}
-    print(f"fromTimestamp: {params}")
-    # Connect to API
+    # Connect to API    
     stream_api = requests.get('https://partners.dnaspaces.io/api/partners/v1/firehose/events',
-                              stream=True, headers=headers, params=params)
+                              stream=True, headers=headers)
     print(f"post_process_results(): Got status code {stream_api.status_code} from partners.dnaspaces.io.")
     # Remember time we started.
-    start_time = datetime.now()
+    start_time = dt.now()
     if stream_api.status_code == 200:
         # Read in an update from Firehose API
         for line in stream_api.iter_lines():
             number_events += 1
             # Extract the data from the event
             data = json.loads(line)
-            if data['eventType'] == "DEVICE_LOCATION_UPDATE":
-                result = get_data_from_json(data, client)
-                # Check if any interesting events are returned.
-                if len(result) > 0:
-                    updates.append(result)
-                    number_location_updates += 1
+            result = get_data_from_json(data, client)
+            # Check if any interesting events are returned.
+            if len(result) > 0:
+                updates.append(result)
+                number_location_updates += 1
             # Check how long we have been reading the events for and stop if its longer than the test time
-            process_time_secs = round((datetime.now() - start_time).total_seconds(), 0)
+            process_time_secs = round((dt.now() - start_time).total_seconds(), 0)
             print(f"post_process_results(): Progress {round((process_time_secs/client['test_time'])*100,1)}% complete."
                   f"post_process_results(): Total events {number_events} "
                   f"Interesting events {number_location_updates}")
@@ -411,12 +403,7 @@ def track_client():
     except ValueError:
         print("track_client(): Error: Unable to test_time to int.")
         processing_error = True
-    try:
-        client['hours_rewind'] = int(request.form['hours_rewind'])
-    except KeyError:
-        print("track_client(): Error: Unable to get the hours_rewind. Setting to 1 hour")
-        client['hours'] = 1
-    client['start_time'] = datetime.now()
+    client['start_time'] = dt.now()
     client['number_updates'] = 0
     if not processing_error:
         client['location_updates'], client['number_updates'], client['total_events'], stats = get_updates(client, api_key)
@@ -459,6 +446,17 @@ def get_home_page():
                            )
 
 
+def get_image_scale_ratio(img_width, img_height, view_width, view_height):
+    if img_width > img_height:
+        print(f"get_image_scale_ratio(): img_width {img_height} greater than img_height {img_height}")
+        ratio = round(view_width/img_width, 2)
+    else:
+        print(f"get_image_scale_ratio():  img_height {img_height} greater than img_width {img_height}")
+        ratio = round(view_height/img_height, 2)
+    print(f"get_image_scale_ratio(): image scale ratio {ratio}")
+    return ratio
+
+
 def get_map(location_id, api_key):
     error = False
     encoded_img_data = ""
@@ -487,11 +485,14 @@ def get_map(location_id, api_key):
         print(f"get_map(): Map info mapId {map_info['mapId']} width {map_info['imageWidth']} height {map_info['imageHeight']}")
         try:
             map_id = map_info['mapId']
-            img_width = float(map_info['imageWidth']) * IMAGE_SCALE
-            img_height = float(map_info['imageHeight']) * IMAGE_SCALE
+            img_width = float(map_info['imageWidth'])
+            img_height = float(map_info['imageHeight'])
+            img_scale_ratio = get_image_scale_ratio(img_width, img_height, SVG_WIDTH, SVG_HEIGHT)
+            img_width_scaled = img_width * img_scale_ratio
+            img_height_scaled = img_height * img_scale_ratio
             dimension_width = feet_to_mts(float(map_info['dimension']['width']))
             dimension_length = feet_to_mts(float(map_info['dimension']['length']))
-            print(f"get_map(): Image width {img_width} image height {img_height} floor width (mtrs) {dimension_width} floor length (mtrs) {dimension_length}")
+            print(f"get_map(): Image width {img_width_scaled} image height {img_height_scaled} floor width (mtrs) {dimension_width} floor length (mtrs) {dimension_length}")
         except ValueError:
             print("get_map(): Image width and height not returned.")
             error = True
@@ -511,7 +512,7 @@ def get_map(location_id, api_key):
             encoded_img_data = base64.b64encode(data.getvalue())
             decode_img_data = encoded_img_data.decode('utf-8')
 
-    return decode_img_data, img_width, img_height, dimension_width, dimension_length
+    return decode_img_data, img_width_scaled, img_height_scaled, dimension_width, dimension_length
 
 
 if __name__ == '__main__':
